@@ -1,0 +1,7 @@
+{
+    "name": "Wust",
+    "short_name": "Wust",
+    "theme_color": "#eef2ff",
+    "background_color": "#eef2ff",
+    "display": "standalone"
+}
