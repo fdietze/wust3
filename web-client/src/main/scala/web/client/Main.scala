@@ -92,7 +92,7 @@ object Main {
                   b(showTopic(binding.predicate, compact = true)),
                 )
               },
-            )
+            ): Modifier
           },
         ),
         db.getTopic(topicId)
@@ -129,7 +129,7 @@ object Main {
                   showTopic(binding.obj, compact = true),
                 )
               },
-            )
+            ): Modifier
           },
           newBindingForm(subject = topicId),
         ),
@@ -219,7 +219,7 @@ object Main {
   } yield topicId
 
   def syncedTextInput(subject: Subject[String]) = {
-    input(tpe := "text", value <-- [Observable] subject, onInput.value --> subject)
+    input(tpe := "text", value.<--[Observable](subject), onInput.value --> subject)
   }
 
 }

@@ -143,6 +143,7 @@ object LocalStorageDatabase extends Api {
         bindingsByObject.updateWith(topic.obj) { seqOpt =>
           Some(seqOpt.fold(Seq(topic.id))(_ :+ topic.id))
         }
+        ()
       case Head(topicId, versionId) => currentTopicVersion(topicId) = versionId
     }
   }
