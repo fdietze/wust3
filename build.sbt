@@ -61,9 +61,10 @@ lazy val webClient = project
     libraryDependencies ++= Seq(
       (Deps.outwatch.core.value).cross(CrossVersion.for3Use2_13),
       /* "com.github.cornerman.fun-stack-scala" %%% "fun-stack-web" % funStackVersion, */
-      "io.circe" %%% "circe-core"    % "0.14.1",
-      "io.circe" %%% "circe-generic" % "0.14.1",
-      "io.circe" %%% "circe-parser"  % "0.14.1",
+      "io.circe"                %%% "circe-core"               % "0.14.1",
+      "io.circe"                %%% "circe-generic"            % "0.14.1",
+      "io.circe"                %%% "circe-parser"             % "0.14.1",
+      ("org.scala-lang.modules" %%% "scala-collection-contrib" % "0.2.2").cross(CrossVersion.for3Use2_13),
     ),
     dependencyOverrides ++= Seq(
       ("com.github.cornerman.colibri" %%% "colibri" % "706907c").cross(CrossVersion.for3Use2_13),

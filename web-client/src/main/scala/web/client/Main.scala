@@ -76,7 +76,7 @@ object Main {
               )
 
           }
-          .handleErrorWith(error => IO(div(cls := "border-2 border-red-400", "Error: ", error.getMessage()))),
+          .recover { case error => div(cls := "border-2 border-red-400", "Error: ", error.getMessage()) },
       )
     } else {
       div(
@@ -117,20 +117,22 @@ object Main {
               )
 
           }
-          .handleErrorWith(error => IO(div(cls := "border-2 border-red-400", "Error: ", error.getMessage()))),
+          .recover { case error => div(cls := "border-2 border-red-400", "Error: ", error.getMessage()) },
         ul(
-          db.getBindingsBySubject(topicId).map { bindings =>
-            bindings.map(topicId =>
-              db.getTopic(topicId).map(_.asInstanceOf[Event.Binding]).map { binding =>
-                li(
-                  cls := "flex flex-row",
-                  b(showTopic(binding.predicate, compact = true)),
-                  div("->", onClick.use(Page.Topic(topicId)) --> Router.page, cursor.pointer),
-                  showTopic(binding.obj, compact = true),
-                )
-              },
-            ): Modifier
-          },
+          db.getBindingsBySubject(topicId)
+            .map { bindings =>
+              bindings.map(topicId =>
+                db.getTopic(topicId).map(_.asInstanceOf[Event.Binding]).map { binding =>
+                  li(
+                    cls := "flex flex-row",
+                    b(showTopic(binding.predicate, compact = true)),
+                    div("->", onClick.use(Page.Topic(topicId)) --> Router.page, cursor.pointer),
+                    showTopic(binding.obj, compact = true),
+                  )
+                },
+              ): Modifier
+            }
+            .recover { case error => div(cls := "border-2 border-red-400", "Error: ", error.getMessage()) },
           newBindingForm(subject = topicId),
         ),
       )
