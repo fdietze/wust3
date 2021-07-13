@@ -77,52 +77,29 @@ trait Api {
 }
 
 object LocalStorageDatabase extends Api {
-  val topicSubscriptions          = mutable.MultiDict.empty[Event.TopicId, Observer[Event.Topic]]
-  val bindingSubjectSubscriptions = mutable.MultiDict.empty[Event.TopicId, Observer[Seq[Event.TopicId]]]
-
-  val topics              = new ReactiveDocumentLocalStorage[Event.VersionId, Event.Topic](namespace = "topics")
+  val topics              = new ReactiveDocumentLocalStorage[Event.VersionId, Event.Topic](collection = "topics")
   val currentTopicVersion = new ReactiveDocumentLocalStorage[Event.TopicId, Event.VersionId](
-    namespace = "currentTopicVersion",
-    onUpdate = { case (topicId, versionId) =>
-      topicSubscriptions.get(topicId).foreach(obs => topics.get(versionId).foreach(obs.onNext))
-    },
+    collection = "currentTopicVersion",
   )
   val bindingsBySubject   =
-    new ReactiveDocumentLocalStorage[Event.TopicId, Seq[Event.TopicId]](namespace = "bindingBySubject")
+    new ReactiveDocumentLocalStorage[Event.TopicId, Seq[Event.TopicId]](collection = "bindingBySubject")
   val bindingsByObject    =
-    new ReactiveDocumentLocalStorage[Event.TopicId, Seq[Event.TopicId]](namespace = "bindingByObject")
+    new ReactiveDocumentLocalStorage[Event.TopicId, Seq[Event.TopicId]](collection = "bindingByObject")
 
-  def topicById(topicId: Event.TopicId): Option[Event.Topic] = {
-    for {
-      versionId <- currentTopicVersion.get(topicId)
-      topic     <- topics.get(versionId)
-    } yield topic
+  def topicById(topicId: Event.TopicId): Observable[Option[Event.Topic]] = {
+    currentTopicVersion
+      .getLive(topicId)
+      .switchMap(versionId => versionId.fold(Observable(None))(versionId => topics.getLive(versionId)))
   }
 
-  override def getTopic(topicId: Event.TopicId): Observable[Event.Topic] = {
-    println(s"getTopic: ${topicId} -> ${topicById(topicId)}")
-    Observable.create { obs =>
-      // initial value
-      topicById(topicId).fold {
-        obs.onError(new Exception(s"Topic ${topicId} not found"))
-      } {
-        obs.onNext
-      }
-      // subscribe to future values
-      topicSubscriptions += (topicId -> obs)
-      Cancelable(() => topicSubscriptions -= (topicId -> obs))
-    }
+  override def getTopic(topicId: Event.TopicId): Observable[Option[Event.Topic]] = {
+    // println(s"getTopic: ${topicId} -> ${topicById.storageRead(topicId)}")
+    topicById(topicId)
   }
 
   override def getBindingsBySubject(subjectId: Event.TopicId): Observable[Seq[Event.TopicId]] = {
-    println(s"getBindingsBySubject: ${subjectId} -> ${bindingsBySubject.get(subjectId)}")
-    Observable.create { obs =>
-      // potential initial values (might be empty)
-      bindingsBySubject.get(subjectId).foreach(obs.onNext)
-      // subscribe to future values
-      bindingSubjectSubscriptions += (subjectId -> obs)
-      Cancelable(() => bindingSubjectSubscriptions -= (subjectId -> obs))
-    }
+    // println(s"getBindingsBySubject: ${subjectId} -> ${bindingsBySubject.get(subjectId)}")
+    bindingsBySubject.getLive(subjectId)
   }
 
   override def getBindingsByObject(objectId: Event.TopicId): IO[Seq[Event.TopicId]] = IO {
