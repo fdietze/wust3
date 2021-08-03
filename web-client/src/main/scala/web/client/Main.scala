@@ -51,7 +51,7 @@ object Main {
     if (compact) {
       span(
         db.getTopic(topicId)
-          .map {
+          .map(_.map {
             case literal: Event.Literal =>
               div(
                 literal.value,
@@ -75,8 +75,7 @@ object Main {
                 ")",
               )
 
-          }
-          .recover { case error => div(cls := "border-2 border-red-400", "Error: ", error.getMessage()) },
+          }),
       )
     } else {
       div(

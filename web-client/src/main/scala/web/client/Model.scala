@@ -1,6 +1,7 @@
 package wust.client
 import wust.client.Event.Head
 import cats.effect.IO
+import cats.data.OptionT
 import cats.implicits._
 import collection.mutable
 import org.scalajs.dom.ext.LocalStorage
@@ -68,7 +69,7 @@ object Event {
 }
 
 trait Api {
-  def getTopic(topicId: Event.TopicId): Observable[Event.Topic]
+  def getTopic(topicId: Event.TopicId): Observable[Option[Event.Topic]]
   def getBindingsBySubject(subjectId: Event.TopicId): Observable[Seq[Event.TopicId]]
   def getBindingsByObject(subjectId: Event.TopicId): IO[Seq[Event.TopicId]]
   def postEvent(event: Event.Event): IO[Unit]
@@ -77,19 +78,23 @@ trait Api {
 }
 
 object LocalStorageDatabase extends Api {
-  val topics              = new ReactiveDocumentLocalStorage[Event.VersionId, Event.Topic](collection = "topics")
-  val currentTopicVersion = new ReactiveDocumentLocalStorage[Event.TopicId, Event.VersionId](
-    collection = "currentTopicVersion",
+  val topics =
+    new ReactiveDocumentLocalStorage[Event.Topic](
+      collection = "topic",
+      primaryKey = topic => topic.version,
+      indices = Seq(
+        { case binding: Event.Binding => binding.subject },
+        { case binding: Event.Binding => binding.obj },
+      ),
+    )
+  val heads  = new ReactiveDocumentLocalStorage[Event.Head](
+    collection = "head",
+    primaryKey = head => head.topicId,
   )
-  val bindingsBySubject   =
-    new ReactiveDocumentLocalStorage[Event.TopicId, Seq[Event.TopicId]](collection = "bindingBySubject")
-  val bindingsByObject    =
-    new ReactiveDocumentLocalStorage[Event.TopicId, Seq[Event.TopicId]](collection = "bindingByObject")
-
   def topicById(topicId: Event.TopicId): Observable[Option[Event.Topic]] = {
-    currentTopicVersion
+    heads
       .getLive(topicId)
-      .switchMap(versionId => versionId.fold(Observable(None))(versionId => topics.getLive(versionId)))
+      .switchMap(head => head.fold(Observable(None))(head => topics.getLive(head.versionId)))
   }
 
   override def getTopic(topicId: Event.TopicId): Observable[Option[Event.Topic]] = {
@@ -98,42 +103,41 @@ object LocalStorageDatabase extends Api {
   }
 
   override def getBindingsBySubject(subjectId: Event.TopicId): Observable[Seq[Event.TopicId]] = {
+
+    // topics.getWithIndex("subject", key)
     // println(s"getBindingsBySubject: ${subjectId} -> ${bindingsBySubject.get(subjectId)}")
-    bindingsBySubject.getLive(subjectId)
+    // bindingsBySubject.getLive(subjectId)
+    ???
   }
 
   override def getBindingsByObject(objectId: Event.TopicId): IO[Seq[Event.TopicId]] = IO {
-    println(s"getBindingsByObject: ${objectId} -> ${bindingsByObject.get(objectId)}")
-    bindingsByObject(objectId)
+    // println(s"getBindingsByObject: ${objectId} -> ${bindingsByObject.get(objectId)}")
+    // bindingsByObject(objectId)
+    ???
   }
 
-  def postEvent(event: Event.Event): IO[Unit] = IO {
+  def postEvent(event: Event.Event): IO[Unit] = {
     println(event)
     event match {
-      case topic: Event.Literal     => topics(topic.version) = topic
-      case topic: Event.Binding     =>
-        topics(topic.version) = topic
-        bindingsBySubject.updateWith(topic.subject) { seqOpt =>
-          Some(seqOpt.fold(Seq(topic.id))(_ :+ topic.id))
-        }
-        bindingsByObject.updateWith(topic.obj) { seqOpt =>
-          Some(seqOpt.fold(Seq(topic.id))(_ :+ topic.id))
-        }
-        ()
-      case Head(topicId, versionId) => currentTopicVersion(topicId) = versionId
+      case topic: Event.Literal => topics.write(topic)
+      case topic: Event.Binding => topics.write(topic)
+      case topic: Head          => heads.write(topic)
     }
   }
-  def newId()                                 = util.Random.alphanumeric.take(10).mkString
-  def now()                                   = System.currentTimeMillis()
+  def newId()                                                                       = util.Random.alphanumeric.take(10).mkString
+  def now()                                                                         = System.currentTimeMillis()
 }
 
-abstract class ReactiveDocumentStorage[K <: String, V: Encoder: Decoder]() {
-  final val subscriptions = mutable.MultiDict.empty[K, Observer[Option[V]]]
+abstract class ReactiveDocumentStorage[V: Encoder: Decoder](
+    primaryKey: V => String,
+    indices: Seq[(String, PartialFunction[V, String])],
+) {
+  final val subscriptions = mutable.MultiDict.empty[String, Observer[Option[V]]]
   storageChangeEvents.foreach { case (key, value) =>
     subscriptions.get(key).foreach(_.onNext(value))
   }
 
-  final def getLive(key: K): Observable[Option[V]] = {
+  final def getLive(key: String): Observable[Option[V]] = {
     Observable.concatAsync(
       // initial value
       storageRead(key),
@@ -146,7 +150,9 @@ abstract class ReactiveDocumentStorage[K <: String, V: Encoder: Decoder]() {
     )
   }
 
-  final def set(elem: (K, Option[V])): IO[Unit] = {
+  final def write(value: V): IO[Unit]     = set(primaryKey(value) -> Some(value))
+  final def delete(key: String): IO[Unit] = set(key -> None)
+  final def set(elem: (String, Option[V])): IO[Unit] = {
     val (key, value) = elem
     for {
       oldValue <- storageRead(key)
@@ -162,19 +168,35 @@ abstract class ReactiveDocumentStorage[K <: String, V: Encoder: Decoder]() {
     } yield ()
   }
 
-  def storageRead(key: K): IO[Option[V]]
-  def storageWrite(elem: (K, Option[V])): IO[Unit]
-  def storageChangeEvents: Observable[(K, Option[V])] = Observable.empty
+  def storageReadRaw(key: String): IO[Option[String]]
+  def storageWriteRaw(elem: (String, Option[String])): IO[Unit]
+
+  final def storageRead(key: String): IO[Option[V]] = {
+    (for {
+      raw     <- OptionT(storageReadRaw(key))
+      decoded <- OptionT(decode[V](raw).toOption.pure[IO])
+    } yield decoded).value
+  }
+  final def storageWrite(elem: (String, Option[V])): IO[Unit] = {
+    val (key, valueOpt) = elem
+    storageWriteRaw(key -> valueOpt.map(_.asJson.noSpaces))
+  }
+  def storageChangeEvents: Observable[(String, Option[V])] = Observable.empty
 }
 
-class ReactiveDocumentLocalStorage[K <: String, V: Encoder: Decoder](collection: String)
-    extends ReactiveDocumentStorage[K, V] {
-  def nkey(key: String): String                      = s"${collection}_${key}"
-  def storageRead(key: K): cats.effect.IO[Option[V]] = IO { LocalStorage(nkey(key)).flatMap(decode[V](_).toOption) }
-  def storageWrite(elem: (K, Option[V])): cats.effect.IO[Unit] = {
+class ReactiveDocumentLocalStorage[V: Encoder: Decoder](
+    collection: String,
+    primaryKey: V => String,
+    indices: Seq[(String, PartialFunction[V, String])] = Seq.empty,
+) extends ReactiveDocumentStorage[V](primaryKey, indices) {
+  def namespacedKey(key: String): String                          = s"${collection}_${key}"
+  def storageReadRaw(key: String): cats.effect.IO[Option[String]] = IO {
+    LocalStorage(namespacedKey(key))
+  }
+  def storageWriteRaw(elem: (String, Option[String])): cats.effect.IO[Unit] = {
     elem match {
-      case (key, Some(value)) => IO { LocalStorage.update(key = nkey(key), value.asJson.noSpaces) }
-      case (key, None)        => IO { LocalStorage.remove(key = nkey(key)) }
+      case (key, Some(value)) => IO { LocalStorage.update(key = namespacedKey(key), value) }
+      case (key, None)        => IO { LocalStorage.remove(key = namespacedKey(key)) }
     }
   }
 }
