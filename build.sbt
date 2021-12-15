@@ -5,7 +5,7 @@ Global / onChangedBuildSource := IgnoreSourceChanges
 inThisBuild(
   Seq(
     version := "0.1.0-SNAPSHOT",
-    scalaVersion := "3.0.0",
+    scalaVersion := "2.13.7",
   ),
 )
 

@@ -84,14 +84,16 @@ object Main {
         ul(
           db.getBindingsByObject(topicId).map { bindings =>
             bindings.map(topicId =>
-              db.getTopic(topicId).map(_.asInstanceOf[Event.Binding]).map { binding =>
-                li(
-                  cls := "flex flex-row",
-                  showTopic(binding.subject, compact = true),
-                  div("->", onClick.use(Page.Topic(topicId)) --> Router.page, cursor.pointer),
-                  b(showTopic(binding.predicate, compact = true)),
-                )
-              },
+              db.getTopic(topicId)
+                .map(_.asInstanceOf[Event.Binding])
+                .map { binding =>
+                  li(
+                    cls := "flex flex-row",
+                    showTopic(binding.subject, compact = true),
+                    div("->", onClick.use(Page.Topic(topicId)) --> Router.page, cursor.pointer),
+                    b(showTopic(binding.predicate, compact = true)),
+                  )
+                },
             ): Modifier
           },
         ),
@@ -121,14 +123,16 @@ object Main {
         ul(
           db.getBindingsBySubject(topicId).map { bindings =>
             bindings.map(topicId =>
-              db.getTopic(topicId).map(_.asInstanceOf[Event.Binding]).map { binding =>
-                li(
-                  cls := "flex flex-row",
-                  b(showTopic(binding.predicate, compact = true)),
-                  div("->", onClick.use(Page.Topic(topicId)) --> Router.page, cursor.pointer),
-                  showTopic(binding.obj, compact = true),
-                )
-              },
+              db.getTopic(topicId)
+                .map(_.asInstanceOf[Event.Binding])
+                .map { binding =>
+                  li(
+                    cls := "flex flex-row",
+                    b(showTopic(binding.predicate, compact = true)),
+                    div("->", onClick.use(Page.Topic(topicId)) --> Router.page, cursor.pointer),
+                    showTopic(binding.obj, compact = true),
+                  )
+                },
             ): Modifier
           },
           newBindingForm(subject = topicId),
@@ -170,6 +174,7 @@ object Main {
             predicateId    <- createLiteral(predicateValue)
             objectId       <- createLiteral(objectValue)
             topicId        <- createBinding(subject, predicateId, objectId)
+            _              <- IO(window.location.reload()),
           } yield ()
         },
       ),
