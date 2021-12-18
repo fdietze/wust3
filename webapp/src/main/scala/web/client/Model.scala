@@ -1,12 +1,13 @@
 package wust.client
 import wust.client.Event.Head
 import cats.effect.IO
+
 import collection.mutable
-import org.scalajs.dom.ext.LocalStorage
 import io.circe._
 import io.circe.parser._
 import io.circe.syntax._
 import io.circe.generic.auto._
+import org.scalajs.dom.window.localStorage
 
 object Event {
   type TopicId   = String
@@ -22,25 +23,25 @@ object Event {
   }
 
   case class Literal(
-      id: TopicId,
-      version: VersionId,
-      parent: Option[VersionId],
-      timestamp: Long,
-      //
-      value: String,
-      // schema: Set[LiteralId]
+    id: TopicId,
+    version: VersionId,
+    parent: Option[VersionId],
+    timestamp: Long,
+    //
+    value: String,
+    // schema: Set[LiteralId]
   ) extends Topic
 
   case class Binding(
-      id: TopicId,
-      version: VersionId,
-      parent: Option[VersionId],
-      timestamp: Long,
-      //
-      subject: TopicId,
-      predicate: LiteralId,
-      obj: TopicId,
-      // cardinality: Option[Int]
+    id: TopicId,
+    version: VersionId,
+    parent: Option[VersionId],
+    timestamp: Long,
+    //
+    subject: TopicId,
+    predicate: LiteralId,
+    obj: TopicId,
+    // cardinality: Option[Int]
   ) extends Topic
 
   case class Head(topicId: TopicId, versionId: VersionId) extends Event
@@ -107,10 +108,10 @@ trait Api {
 
 object LocalStorageDatabase extends Api {
 
-  val topics              = new LocalStorageMap[Event.VersionId, Event.Topic](namespace = "topics")
-  val currentTopicVersion = new LocalStorageMap[Event.TopicId, Event.VersionId](namespace = "currentTopicVersion")
-  val bindingsBySubject   = new LocalStorageMap[Event.TopicId, Seq[Event.TopicId]](namespace = "bindingBySubject")
-  val bindingsByObject    = new LocalStorageMap[Event.TopicId, Seq[Event.TopicId]](namespace = "bindingByObject")
+  val topics                                         = new LocalStorageMap[Event.VersionId, Event.Topic](namespace = "topics")
+  val currentTopicVersion                            = new LocalStorageMap[Event.TopicId, Event.VersionId](namespace = "currentTopicVersion")
+  val bindingsBySubject                              = new LocalStorageMap[Event.TopicId, Seq[Event.TopicId]](namespace = "bindingBySubject")
+  val bindingsByObject                               = new LocalStorageMap[Event.TopicId, Seq[Event.TopicId]](namespace = "bindingByObject")
   def topicById(topicId: Event.TopicId): Event.Topic = {
     val versionId = currentTopicVersion(topicId)
     topics(versionId)
@@ -156,7 +157,7 @@ class LocalStorageMap[K <: String, V: Encoder: Decoder](namespace: String) exten
 
   // Members declared in scala.collection.mutable.Growable
   def addOne(elem: (K, V)): this.type = {
-    LocalStorage.update(key = nkey(elem._1), elem._2.asJson.noSpaces)
+    localStorage.setItem(key = nkey(elem._1), elem._2.asJson.noSpaces)
     this
   }
 
@@ -164,11 +165,11 @@ class LocalStorageMap[K <: String, V: Encoder: Decoder](namespace: String) exten
   def iterator: Iterator[(K, V)] = ???
 
   // Members declared in scala.collection.MapOps
-  def get(key: K): Option[V] = LocalStorage(nkey(key)).flatMap(decode[V](_).toOption)
+  def get(key: K): Option[V] = Option(localStorage.getItem(nkey(key))).flatMap(decode[V](_).toOption)
 
   // Members declared in scala.collection.mutable.Shrinkable
   def subtractOne(elem: K): this.type = {
-    LocalStorage.remove(nkey(elem))
+    localStorage.removeItem(nkey(elem))
     this
   }
 }

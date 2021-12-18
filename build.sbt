@@ -1,85 +1,78 @@
-import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
+Global / onChangedBuildSource := IgnoreSourceChanges // not working well with webpack devserver
 
-Global / onChangedBuildSource := IgnoreSourceChanges
+ThisBuild / version      := "0.1.0-SNAPSHOT"
+ThisBuild / scalaVersion := "2.13.7"
 
-inThisBuild(
-  Seq(
-    version := "0.1.0-SNAPSHOT",
-    scalaVersion := "2.13.7",
-  ),
+val versions = new {
+  val funStack = "0.1.5"
+  val funPack  = "0.1.4"
+  val circe    = "0.14.1"
+  val outwatch = "7e260b7"
+  val colibri  = "0.1.2"
+}
+
+ThisBuild / resolvers ++= Seq(
+  "jitpack" at "https://jitpack.io",
+  "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
+  "Sonatype OSS Snapshots S01" at "https://s01.oss.sonatype.org/content/repositories/snapshots", // https://central.sonatype.org/news/20210223_new-users-on-s01/
 )
 
 lazy val commonSettings = Seq(
-  resolvers ++= Seq(("jitpack" at "https://jitpack.io")),
-  libraryDependencies ++= Seq("org.scalatest" %%% "scalatest" % "3.2.9" % Test),
-  scalacOptions -= "-Xfatal-warnings",
+  addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
+  scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat
 )
 
 lazy val jsSettings = Seq(
-  useYarn := true,
+  webpack / version   := "4.46.0",
+  useYarn             := true,
   scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
-  webpack / version := "4.46.0",
-  Compile / npmDevDependencies += NpmDeps.funpack,
-  Compile / npmDevDependencies ++= NpmDeps.Dev,
+  libraryDependencies += "org.portable-scala" %%% "portable-scala-reflect" % "1.1.1",
 )
 
-lazy val localeSettings = Seq(
-  /* zonesFilter := { (z: String) => false }, */
-)
-
-val funStackVersion = "fc6a023"
-
-lazy val webSettings = Seq(
-  scalaJSUseMainModuleInitializer := true,
-  /* scalaJSLinkerConfig ~= { _.withESFeatures(_.withUseECMAScript2015(false)) }, */
-  Test / requireJsDomEnv := true,
-  startWebpackDevServer / version := "3.11.2",
-  webpackDevServerExtraArgs := Seq("--color"),
-  webpackDevServerPort := 12345,
-  fastOptJS / webpackConfigFile := Some(
-    baseDirectory.value / "webpack.config.dev.js",
-  ),
-  fullOptJS / webpackConfigFile := Some(
-    baseDirectory.value / "webpack.config.prod.js",
-  ),
-  fastOptJS / webpackBundlingMode := BundlingMode.LibraryOnly(),
-  /* libraryDependencies += "org.portable-scala" %%% "portable-scala-reflect" % "1.1.1", */
-)
-
-lazy val webClient = project
+lazy val webapp = project
   .enablePlugins(
     ScalaJSPlugin,
     ScalaJSBundlerPlugin,
     ScalablyTypedConverterPlugin,
-    /* LocalesPlugin, */
-    /* TzdbPlugin, */
   )
-  .in(file("web-client"))
-  .settings(commonSettings, jsSettings, localeSettings, webSettings)
+  .settings(commonSettings, jsSettings)
   .settings(
-    fullOptJS / webpackEmitSourceMaps := false,
-    libraryDependencies ++= Seq(
-      (Deps.outwatch.core.value).cross(CrossVersion.for3Use2_13),
-      /* "com.github.cornerman.fun-stack-scala" %%% "fun-stack-web" % funStackVersion, */
-      "io.circe" %%% "circe-core"    % "0.14.1",
-      "io.circe" %%% "circe-generic" % "0.14.1",
-      "io.circe" %%% "circe-parser"  % "0.14.1",
+    libraryDependencies              ++= Seq(
+      "com.github.cornerman.outwatch" %%% "outwatch"       % versions.outwatch,
+      "com.github.cornerman.outwatch" %%% "outwatch-util"  % versions.outwatch, // Store, Websocket, Http
+      "com.github.cornerman"          %%% "colibri-router" % "0.1.2",
+      "io.circe"                      %%% "circe-core"     % versions.circe,
+      "io.circe"                      %%% "circe-generic"  % versions.circe,
+      "io.circe"                      %%% "circe-parser"   % versions.circe,
     ),
-    dependencyOverrides ++= Seq(
-      ("com.github.cornerman.colibri" %%% "colibri" % "706907c").cross(CrossVersion.for3Use2_13),
+    Compile / npmDependencies        ++= Seq(
+      "snabbdom" -> "git://github.com/outwatch/snabbdom.git#semver:0.7.5",// for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293
     ),
-    Compile / npmDependencies ++= Seq(
-      NpmDeps.tailwindForms,
-      NpmDeps.tailwindTypography,
-      ("snabbdom" -> "git://github.com/outwatch/snabbdom.git#semver:0.7.5"),
+    stIgnore                         ++= List(
+      "snabbdom",                                                         // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293
     ),
-    stIgnore ++= List(
-      "@tailwindcss/forms",
-      "@tailwindcss/typography",
+    Compile / npmDevDependencies     ++= Seq(
+      "@fun-stack/fun-pack" -> versions.funPack, // sane defaults for webpack development and production, see webpack.config.*.js
+      "autoprefixer"        -> "10.4.0",
+      "postcss"             -> "8.2.9",
+      "postcss-loader"      -> "4.2.0",
+      "postcss-import"      -> "14.0.1",
+      "postcss-nesting"     -> "7.0.1",
+      "postcss-extend-rule" -> "3.0.0",
+      "tailwindcss"         -> "2.1.1",
     ),
+    scalaJSUseMainModuleInitializer   := true,
+    webpackDevServerPort              := 12345,
+    webpackDevServerExtraArgs         := Seq("--color"),
+    startWebpackDevServer / version   := "3.11.3",
+    fullOptJS / webpackEmitSourceMaps := true,
+    fastOptJS / webpackBundlingMode   := BundlingMode.LibraryOnly(),
+    fastOptJS / webpackConfigFile     := Some(baseDirectory.value / "webpack.config.dev.js"),
+    fullOptJS / webpackConfigFile     := Some(baseDirectory.value / "webpack.config.prod.js"),
   )
 
-addCommandAlias("dev", "devInit; devWatchAll; devDestroy") // watch all
-addCommandAlias("devInit", "webClient/fastOptJS/startWebpackDevServer")
-addCommandAlias("devWatchAll", "~; webClient/fastOptJS/webpack")
-addCommandAlias("devDestroy", "webClient/fastOptJS/stopWebpackDevServer")
+addCommandAlias("prod", "fullOptJS/webpack")
+addCommandAlias("dev", "devInit; devWatchAll; devDestroy")
+addCommandAlias("devInit", "; webapp/fastOptJS/startWebpackDevServer")
+addCommandAlias("devWatchAll", "~; webapp/fastOptJS/webpack")
+addCommandAlias("devDestroy", "webapp/fastOptJS/stopWebpackDevServer")

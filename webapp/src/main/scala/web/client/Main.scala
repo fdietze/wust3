@@ -34,20 +34,18 @@ object Main {
 
   val db = LocalStorageDatabase
 
-  def main(args: Array[String]): Unit = {
+  def main(args: Array[String]): Unit =
     Outwatch.renderInto[SyncIO]("#app", page()).unsafeRunSync()
-  }
 
-  def page(): VNode = {
+  def page(): VNode =
     div(
       Router.page.map {
         case Page.Index          => newTopicForm()
         case Page.Topic(topicId) => showTopic(topicId)
       },
     )
-  }
 
-  def showTopic(topicId: Event.TopicId, compact: Boolean = false): VNode = {
+  def showTopic(topicId: Event.TopicId, compact: Boolean = false): VNode =
     if (compact) {
       span(
         db.getTopic(topicId)
@@ -78,7 +76,8 @@ object Main {
           }
           .handleErrorWith(error => IO(div(cls := "border-2 border-red-400", "Error: ", error.getMessage()))),
       )
-    } else {
+    }
+    else {
       div(
         cls := "border-2 border-blue-400 p-4",
         ul(
@@ -94,7 +93,7 @@ object Main {
                     b(showTopic(binding.predicate, compact = true)),
                   )
                 },
-            ): Modifier
+            ): VDomModifier
           },
         ),
         db.getTopic(topicId)
@@ -133,13 +132,12 @@ object Main {
                     showTopic(binding.obj, compact = true),
                   )
                 },
-            ): Modifier
+            ): VDomModifier
           },
           newBindingForm(subject = topicId),
         ),
       )
     }
-  }
 
   def newTopicForm() = {
     val fieldValue = Subject.behavior("")
@@ -223,8 +221,12 @@ object Main {
                  )
   } yield topicId
 
-  def syncedTextInput(subject: Subject[String]) = {
-    input(tpe := "text", value.<--[Observable](subject), onInput.value --> subject)
-  }
+  def syncedTextInput(subject: Subject[String]) =
+    input(
+      tpe := "text",
+      value.<--[Observable](subject),
+      onInput.value --> subject,
+      cls := "border border-black",
+    )
 
 }
