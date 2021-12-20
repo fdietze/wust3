@@ -1,26 +1,33 @@
 package web.client
 import cats.effect.{ContextShift, IO}
+import colibri.firebase.{circeConverter, docSubject}
 import colibri.{Observable, Subject}
-import colibri.firebase.docSubject
-import io.circe.generic.auto._
-import io.circe.parser._
-import io.circe.syntax._
-import org.scalajs.dom.{console, window}
+import io.circe.generic.extras.{Configuration, ConfiguredJsonCodec}
+import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+import io.circe.{Decoder, Encoder}
+import org.scalajs.dom.window
 import web.client.Event.TopicId
-
-import scala.scalajs.js
 
 object Event {
   type TopicId   = String
   type VersionId = String
   type LiteralId = TopicId
 
-//  sealed trait Event
+// Annotation is required when using semi-automatic derivation with configuration
+// https://github.com/circe/circe-generic-extras/blob/master/generic-extras/src/main/scala/io/circe/generic/extras/Configuration.scala
+  @ConfiguredJsonCodec
   sealed trait Topic {
     def id: TopicId
 //    def version: VersionId
 //    def parent: Option[VersionId]
 //    def timestamp: Long
+  }
+  object Topic {
+    implicit val genDevConfig: Configuration =
+      Configuration.default.withDiscriminator("_type")
+
+    implicit val decoder: Decoder[Topic] = deriveDecoder
+    implicit val encoder: Encoder[Topic] = deriveEncoder
   }
 
   case class Literal(
@@ -73,48 +80,22 @@ object FirebaseDatabase extends Api[Observable] {
       .setAppId("1:622146703474:web:cc97a3a2de7231c11532eb"),
   )
 
-  // TODO: https://github.com/ScalablyTyped/Converter/issues/392
-  def collection(firestore: Firestore, path: String) =
-    (typings.firebaseFirestore.mod.^.asInstanceOf[js.Dynamic]
-      .applyDynamic("collection")(
-        firestore.asInstanceOf[js.Any],
-        path.asInstanceOf[js.Any],
-      ))
-      .asInstanceOf[CollectionReference[typings.firebaseFirestore.mod.DocumentData]]
-
-  def doc[T](firestore: Firestore, path: String) =
-    typings.firebaseFirestore.mod.^.asInstanceOf[js.Dynamic]
-      .applyDynamic("doc")(
-        firestore.asInstanceOf[js.Any],
-        path.asInstanceOf[js.Any],
-      )
-      .asInstanceOf[DocumentReference[T]]
-
   // https://firebase.google.com/docs/emulator-suite/connect_rtdb#instrument_your_app_to_talk_to_the_emulators
   val db = getFirestore()
   if (window.location.hostname == "localhost") {
     connectFirestoreEmulator(db, "localhost", 8080)
   }
 
-  import typings.firebaseFirestore.mod.FirestoreDataConverter
-
   val sub: Subject[Option[Event.Topic]] = docSubject(
-    doc[Event.Topic](db, "test/0000aaxyz").withConverter(
-      js.Dynamic
-        .literal(
-          toFirestore = (modelObject: WithFieldValue[Event.Topic]) =>
-            js.JSON.parse(modelObject.asInstanceOf[Event.Topic].asJson.noSpaces).asInstanceOf[DocumentData],
-          fromFirestore =
-            (snapshot: QueryDocumentSnapshot[DocumentData]) => decode[Event.Topic](js.JSON.stringify(snapshot.data().get)).toOption.get,
-        )
-        .asInstanceOf[FirestoreDataConverter[Event.Topic]],
-    ),
+    doc(db: typings.firebaseFirestore.mod.Firestore, "test", "aaxyz")
+      .withConverter(circeConverter[Event.Topic]),
   )
-  sub.foreach(console.log(_))
+  sub.foreach(println(_))
   sub.onNext(Some(Event.Binding("jo", "hi", "a", "x")))
 
   override def getTopic(topicId: TopicId): Observable[Event.Topic] = {
-    val document = doc(db, s"topics/$topicId")
+    val document = doc(db, "topics", "other", "something")
+    println(document)
     ???
   }
 

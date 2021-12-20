@@ -1,9 +1,13 @@
 package colibri
 
-import io.circe.Encoder
+import io.circe.parser.decode
+import io.circe.{Decoder, Encoder}
+import io.circe.syntax._
 import org.scalablytyped.runtime.StringDictionary
 import typings.firebaseFirestore.mod.{collection => _, doc => _, _}
 import org.scalajs.dom.console
+import scala.scalajs.js.JSConverters._
+import web.client.Event
 
 import scala.scalajs.js
 
@@ -39,4 +43,18 @@ package object firebase {
       Cancelable(unsubscribe)
     }
 
+  def circeConverter[T: Encoder: Decoder]: FirestoreDataConverter[T] = js.Dynamic
+    .literal(
+      toFirestore = { (modelObject: WithFieldValue[T]) =>
+        js.JSON.parse(modelObject.asInstanceOf[T].asJson.noSpaces).asInstanceOf[DocumentData]
+      },
+      fromFirestore = { (snapshot: QueryDocumentSnapshot[DocumentData]) =>
+        snapshot.data().flatMap { data =>
+          val decoded = decode[T](js.JSON.stringify(data))
+          decoded.left.foreach(_ => console.warn("Could not decode: ", data))
+          decoded.toOption.getOrElse(js.undefined)
+        }
+      },
+    )
+    .asInstanceOf[FirestoreDataConverter[T]]
 }

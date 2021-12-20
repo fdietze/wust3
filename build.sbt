@@ -20,6 +20,7 @@ ThisBuild / resolvers ++= Seq(
 lazy val commonSettings = Seq(
   addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
   scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat
+  scalacOptions ++= Seq("-Ymacro-annotations"),
 )
 
 lazy val jsSettings = Seq(
@@ -38,19 +39,20 @@ lazy val webapp = project
   .settings(commonSettings, jsSettings)
   .settings(
     libraryDependencies              ++= Seq(
-      "com.github.cornerman.outwatch" %%% "outwatch"       % versions.outwatch,
-      "com.github.cornerman.outwatch" %%% "outwatch-util"  % versions.outwatch, // Store, Websocket, Http
-      "com.github.cornerman"          %%% "colibri-router" % "0.1.2",
-      "io.circe"                      %%% "circe-core"     % versions.circe,
-      "io.circe"                      %%% "circe-generic"  % versions.circe,
-      "io.circe"                      %%% "circe-parser"   % versions.circe,
+      "com.github.cornerman.outwatch" %%% "outwatch"             % versions.outwatch,
+      "com.github.cornerman.outwatch" %%% "outwatch-util"        % versions.outwatch, // Store, Websocket, Http
+      "com.github.cornerman"          %%% "colibri-router"       % "0.1.2",
+      "io.circe"                      %%% "circe-core"           % versions.circe,
+      "io.circe"                      %%% "circe-generic"        % versions.circe,
+      "io.circe"                      %%% "circe-parser"         % versions.circe,
+      "io.circe"                      %%% "circe-generic-extras" % versions.circe,
     ),
     Compile / npmDependencies        ++= Seq(
-      "snabbdom" -> "git://github.com/outwatch/snabbdom.git#semver:0.7.5",// for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293
+      "snabbdom" -> "git://github.com/outwatch/snabbdom.git#semver:0.7.5", // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293
       "firebase" -> "9.6.1",
     ),
     stIgnore                         ++= List(
-      "snabbdom",                                                         // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293
+      "snabbdom", // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293
     ),
     Compile / npmDevDependencies     ++= Seq(
       "@fun-stack/fun-pack" -> versions.funPack, // sane defaults for webpack development and production, see webpack.config.*.js
