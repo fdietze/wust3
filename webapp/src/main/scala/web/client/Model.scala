@@ -1,13 +1,21 @@
 package wust.client
-import wust.client.Event.Head
-import cats.effect.IO
+import wust.client.Event.{Head, TopicId}
+import cats.effect.{ContextShift, IO}
+import colibri.firebase.docSubject
+import colibri.{Cancelable, Observable, Observer, Subject}
 
 import collection.mutable
 import io.circe._
 import io.circe.parser._
 import io.circe.syntax._
 import io.circe.generic.auto._
+import org.scalablytyped.runtime.StringDictionary
 import org.scalajs.dom.window.localStorage
+import org.scalajs.dom.window
+import org.scalajs.dom.console
+
+import scala.scalajs.js.JSConverters._
+import scala.scalajs.js
 
 object Event {
   type TopicId   = String
@@ -97,16 +105,84 @@ object Event {
 
 // }
 
-trait Api {
-  def getTopic(topicId: Event.TopicId): IO[Event.Topic]
-  def getBindingsBySubject(subjectId: Event.TopicId): IO[Seq[Event.TopicId]]
-  def getBindingsByObject(subjectId: Event.TopicId): IO[Seq[Event.TopicId]]
+trait Api[F[_]] {
+  def getTopic(topicId: Event.TopicId): F[Event.Topic]
+  def getBindingsBySubject(subjectId: Event.TopicId): F[Seq[Event.TopicId]]
+  def getBindingsByObject(subjectId: Event.TopicId): F[Seq[Event.TopicId]]
   def postEvent(event: Event.Event): IO[Unit]
   def newId(): String
   def now(): Long
 }
 
-object LocalStorageDatabase extends Api {
+object FirebaseDatabase extends Api[Observable] {
+  import typings.firebaseFirestore.mod.{connectFirestoreEmulator, getFirestore}
+  import typings.firebaseApp.mod.initializeApp
+  import typings.firebaseApp.mod.FirebaseOptions
+
+  import typings.firebaseFirestore.mod.{query, CollectionReference, DocumentReference, Firestore}
+
+  implicit val ec: scala.concurrent.ExecutionContext =
+    scala.concurrent.ExecutionContext.global
+  implicit val contextShift: ContextShift[IO]        = IO.contextShift(ec)
+
+  initializeApp(
+    FirebaseOptions()
+      .setApiKey("AIzaSyCIbcwpfFLk-25OoXfxXT8QF2qZFnQaP1M")
+      .setAuthDomain("wust-3.firebaseapp.com")
+      .setProjectId("wust-3")
+      .setStorageBucket("wust-3.appspot.com")
+      .setMessagingSenderId("622146703474")
+      .setAppId("1:622146703474:web:cc97a3a2de7231c11532eb"),
+  )
+
+  // TODO: https://github.com/ScalablyTyped/Converter/issues/392
+  def collection(firestore: Firestore, path: String) =
+    (typings.firebaseFirestore.mod.^.asInstanceOf[js.Dynamic]
+      .applyDynamic("collection")(
+        firestore.asInstanceOf[js.Any],
+        path.asInstanceOf[js.Any],
+      ))
+      .asInstanceOf[CollectionReference[typings.firebaseFirestore.mod.DocumentData]]
+
+  def doc[T](firestore: Firestore, path: String) =
+    typings.firebaseFirestore.mod.^.asInstanceOf[js.Dynamic]
+      .applyDynamic("doc")(
+        firestore.asInstanceOf[js.Any],
+        path.asInstanceOf[js.Any],
+      )
+      .asInstanceOf[DocumentReference[T]]
+
+  // https://firebase.google.com/docs/emulator-suite/connect_rtdb#instrument_your_app_to_talk_to_the_emulators
+  val db = getFirestore()
+  if (window.location.hostname == "localhost") {
+    connectFirestoreEmulator(db, "localhost", 8080)
+  }
+
+  class Test(val a: Int, val b: String) extends js.Object
+  console.log(new Test(17, "gu"))
+
+  val sub = docSubject(doc[Test](db, "test/0000aaxyz"))
+  sub.foreach(console.log(_))
+  sub.onNext(Some(new Test(7, "hhaaaa")))
+//  sub.onNext(None)
+
+  override def getTopic(topicId: TopicId): Observable[Event.Topic] = {
+    val document = doc(db, s"topics/$topicId")
+    ???
+  }
+
+  override def getBindingsBySubject(subjectId: TopicId): Observable[Seq[TopicId]] = ???
+
+  override def getBindingsByObject(subjectId: TopicId): Observable[Seq[TopicId]] = ???
+
+  override def postEvent(event: Event.Event): IO[Unit] = ???
+
+  override def newId(): String = ???
+
+  override def now(): Long = ???
+}
+
+object LocalStorageDatabase extends Api[IO] {
 
   val topics                                         = new LocalStorageMap[Event.VersionId, Event.Topic](namespace = "topics")
   val currentTopicVersion                            = new LocalStorageMap[Event.TopicId, Event.VersionId](namespace = "currentTopicVersion")

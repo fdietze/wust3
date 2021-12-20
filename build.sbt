@@ -47,6 +47,7 @@ lazy val webapp = project
     ),
     Compile / npmDependencies        ++= Seq(
       "snabbdom" -> "git://github.com/outwatch/snabbdom.git#semver:0.7.5",// for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293
+      "firebase" -> "9.6.1",
     ),
     stIgnore                         ++= List(
       "snabbdom",                                                         // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293

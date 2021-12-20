@@ -20,19 +20,24 @@ import scala.util.Try
 import wust.client.Event.Literal
 import wust.client.Page.Index
 
+import scala.sys.process
+
 @js.native
-@JSImport("../../../../src/main/css/index.css", JSImport.Namespace)
+@JSImport("src/main/css/index.css", JSImport.Namespace)
 object Css extends js.Object
 
 @js.native
-@JSImport("../../../../src/main/css/tailwind.css", JSImport.Namespace)
+@JSImport("src/main/css/tailwind.css", JSImport.Namespace)
 object TailwindCss extends js.Object
 
 object Main {
   TailwindCss
   Css // load css
 
-  val db = LocalStorageDatabase
+//  console.log("TESTENV")
+//  console.log(js.Dynamic.global.TESTENV)
+
+  val db = FirebaseDatabase
 
   def main(args: Array[String]): Unit =
     Outwatch.renderInto[SyncIO]("#app", page()).unsafeRunSync()
@@ -74,7 +79,7 @@ object Main {
               )
 
           }
-          .handleErrorWith(error => IO(div(cls := "border-2 border-red-400", "Error: ", error.getMessage()))),
+//          .handleErrorWith(error => IO(div(cls := "border-2 border-red-400", "Error: ", error.getMessage()))),
       )
     }
     else {
@@ -93,7 +98,7 @@ object Main {
                     b(showTopic(binding.predicate, compact = true)),
                   )
                 },
-            ): VDomModifier
+            ): VModifier
           },
         ),
         db.getTopic(topicId)
@@ -117,8 +122,7 @@ object Main {
                 ")",
               )
 
-          }
-          .handleErrorWith(error => IO(div(cls := "border-2 border-red-400", "Error: ", error.getMessage()))),
+          },
         ul(
           db.getBindingsBySubject(topicId).map { bindings =>
             bindings.map(topicId =>
@@ -132,7 +136,7 @@ object Main {
                     showTopic(binding.obj, compact = true),
                   )
                 },
-            ): VDomModifier
+            ): VModifier
           },
           newBindingForm(subject = topicId),
         ),
