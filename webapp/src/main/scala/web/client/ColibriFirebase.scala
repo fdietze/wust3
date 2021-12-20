@@ -1,7 +1,9 @@
 package colibri
 
+import io.circe.Encoder
 import org.scalablytyped.runtime.StringDictionary
 import typings.firebaseFirestore.mod.{collection => _, doc => _, _}
+import org.scalajs.dom.console
 
 import scala.scalajs.js
 
@@ -16,7 +18,13 @@ package object firebase {
 
   def docObserver[T](document: DocumentReference[T]): Observer[Option[T]] =
     Observer.create {
-      case Some(data) => setDoc(document, data)
+      case Some(data) =>
+        console.log("writing ", data)
+//        // somehow firebase doesn't write js class instances directly,
+//        // so we'll convert it to a plain js object first
+//        // TODO: https://stackoverflow.com/a/66774294
+//        val plainObject = js.JSON.parse(js.JSON.stringify(data)).asInstanceOf[T]
+        setDoc(document, data)
       case None       => deleteDoc(document.asInstanceOf[DocumentReference[Any]])
     }
 
@@ -25,7 +33,7 @@ package object firebase {
     docObservable(document),
   )
 
-  def queryObservable[T](query: Query_[T]): Observable[js.Array[QueryDocumentSnapshot[T]]] =
+  def queryObservable[T <: js.Object](query: Query_[T]): Observable[js.Array[QueryDocumentSnapshot[T]]] =
     Observable.create { observer =>
       val unsubscribe = onSnapshot(query, (querySnapshot: QuerySnapshot[T]) => observer.onNext(querySnapshot.docs))
       Cancelable(unsubscribe)
