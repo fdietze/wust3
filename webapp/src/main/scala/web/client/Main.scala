@@ -31,10 +31,95 @@ object Main {
 
   def page(): VNode =
     div(
-      Page.page.map {
+      Page.page.map[VModifier] {
         case Page.Home           => newLiteralForm()
-        case Page.Topic(topicId) => showTopic(topicId, compact = false)
+        case Page.Topic(topicId) => focusTopic(topicId)
       },
+    )
+
+  def focusTopic(topicId: Event.TopicId, seen: Set[Event.TopicId] = Set.empty): VNode =
+    if (seen(topicId)) div("recursion", cls := "text-gray-300")
+    else
+      div(
+        cls                                 := "flex flex-col",
+        cls                                 := "border-4 border-sky-100 p-2 mr-2",
+        api.getTopic(topicId).map {
+          case Some(literal: Event.Literal) => focusLiteral(literal)
+          case Some(binding: Event.Binding) => focusBinding(binding)
+          case None                         => VModifier.empty
+        },
+        topicContext(topicId, seen + topicId),
+      )
+
+  def focusLiteral(literal: Event.Literal) =
+    div(
+      literal.value,
+      onClick.use(Page.Topic(literal.id)) --> Page.page,
+      cursor.pointer,
+      cls := "font-bold",
+    )
+
+  def focusBinding(binding: Event.Binding) =
+    span(
+      span(binding.subject),
+      span(binding.predicate),
+      span(binding.obj),
+    )
+
+  def topicContext(topicId: Event.TopicId, seen: Set[Event.TopicId] = Set.empty): VNode =
+    div(
+      cls := "flex flex-row",
+      div(
+        api
+          .getBindingsByObject(topicId)
+          .map { topics =>
+            val bindings =
+              topics.collect { case binding: Event.Binding =>
+                div(cls := "flex flex-row", focusTopic(binding.subject, seen), focusTopic(binding.predicate, seen))
+              }
+            if (bindings.nonEmpty) {
+              div(
+                div("object for"),
+                bindings,
+              )
+            }
+            else VModifier.empty
+          },
+      ),
+      div(
+        api
+          .getBindingsByObject(topicId)
+          .map { topics =>
+            val bindings =
+              topics.collect { case binding: Event.Binding =>
+                div(cls := "flex flex-row", focusTopic(binding.subject, seen), focusTopic(binding.obj, seen))
+              }
+            if (bindings.nonEmpty) {
+              div(
+                div("predicate for"),
+                bindings,
+              )
+            }
+            else VModifier.empty
+          },
+      ),
+      div(
+        api
+          .getBindingsBySubject(topicId)
+          .map { topics =>
+            val bindings =
+              topics.collect { case binding: Event.Binding =>
+                div(cls := "flex flex-row", focusTopic(binding.predicate, seen), focusTopic(binding.obj, seen))
+              }
+            if (bindings.nonEmpty) {
+              div(
+                div("subject for"),
+                bindings,
+              )
+            }
+            else VModifier.empty
+          },
+      ),
     )
 
   def showTopic(topicId: Event.TopicId, compact: Boolean): VNode =
@@ -49,7 +134,7 @@ object Main {
     }
     else {
       div(
-        cls := "border-2 border-blue-400 p-4",
+        cls := "border-2 border-sky-400 p-4",
         reverseBindingsDetailed(topicId),
         api.getTopic(topicId).map {
           case Some(literal: Event.Literal) => largeLiteralValue(literal)

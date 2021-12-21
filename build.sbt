@@ -62,7 +62,7 @@ lazy val webapp = project
       "postcss-import"      -> "14.0.1",
       "postcss-nesting"     -> "7.0.1",
       "postcss-extend-rule" -> "3.0.0",
-      "tailwindcss"         -> "2.1.1",
+      "tailwindcss"         -> "3.0.7",
     ),
     scalaJSUseMainModuleInitializer   := true,
     webpackDevServerPort              := 12345,

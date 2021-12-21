@@ -13,6 +13,7 @@ import scala.scalajs.js
 trait Api {
   def getTopic(topicId: Event.TopicId): Observable[Option[Event.Topic]]
   def getBindingsBySubject(subjectId: Event.TopicId): Observable[js.Array[Event.Topic]]
+  def getBindingsByPredicate(predicateId: Event.TopicId): Observable[js.Array[Event.Topic]]
   def getBindingsByObject(objectId: Event.TopicId): Observable[js.Array[Event.Topic]]
   def writeTopic(topic: Event.Topic): IO[Unit]
   def newId(): String
@@ -76,23 +77,23 @@ object FirebaseDatabase extends Api {
   override def getTopic(topicId: TopicId): Observable[Option[Event.Topic]] =
     docObservable(doc(db, "topics", topicId).withConverter(circeConverter[Event.Topic]))
 
-  override def getBindingsBySubject(subjectId: TopicId): Observable[js.Array[Event.Topic]] =
+  def getTopicsByField(_type: String, field: String, value: TopicId): Observable[js.Array[Event.Topic]] =
     queryObservable(
       query(
         collection(db, "topics"),
-        where("_type", WhereFilterOp.EqualssignEqualssign, "Binding"),
-        where("subject", WhereFilterOp.EqualssignEqualssign, subjectId),
+        where("_type", WhereFilterOp.EqualssignEqualssign, _type),
+        where(field, WhereFilterOp.EqualssignEqualssign, value),
       ).withConverter(circeConverter[Event.Topic]),
     ).map(_.map(_.data().get))
 
+  override def getBindingsBySubject(subjectId: TopicId): Observable[js.Array[Event.Topic]] =
+    getTopicsByField("Binding", "subject", subjectId)
+
+  override def getBindingsByPredicate(subjectId: TopicId): Observable[js.Array[Event.Topic]] =
+    getTopicsByField("Binding", "predicate", subjectId)
+
   override def getBindingsByObject(subjectId: TopicId): Observable[js.Array[Event.Topic]] =
-    queryObservable(
-      query(
-        collection(db, "topics"),
-        where("_type", WhereFilterOp.EqualssignEqualssign, "Binding"),
-        where("obj", WhereFilterOp.EqualssignEqualssign, subjectId),
-      ).withConverter(circeConverter[Event.Topic]),
-    ).map(_.map(_.data().get))
+    getTopicsByField("Binding", "obj", subjectId)
 
   override def writeTopic(topic: Event.Topic): IO[Unit] =
     IO.fromFuture(IO(setDoc[Event.Topic](doc(db, "topics", topic.id).withConverter(circeConverter[Event.Topic]), topic).toFuture))
