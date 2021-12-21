@@ -2,9 +2,9 @@ package web.client
 
 import cats.effect.{IO, SyncIO}
 import colibri.{Observable, Subject}
-import org.scalajs.dom.window
 import outwatch._
 import outwatch.dsl._
+import web.client.Event.TopicId
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation._
@@ -24,7 +24,7 @@ object Main {
 //  console.log("TESTENV")
 //  console.log(js.Dynamic.global.TESTENV)
 
-  val db = FirebaseDatabase
+  val api: Api = FirebaseDatabase
 
   def main(args: Array[String]): Unit =
     Outwatch.renderInto[SyncIO]("#app", page()).unsafeRunSync()
@@ -32,103 +32,111 @@ object Main {
   def page(): VNode =
     div(
       Page.page.map {
-        case Page.Index          => newTopicForm()
-        case Page.Topic(topicId) => showTopic(topicId)
+        case Page.Home           => newLiteralForm()
+        case Page.Topic(topicId) => showTopic(topicId, compact = false)
       },
     )
 
-  def showTopic(topicId: Event.TopicId, compact: Boolean = false): VNode =
+  def showTopic(topicId: Event.TopicId, compact: Boolean): VNode =
     if (compact) {
       span(
-        db.getTopic(topicId).map {
-          case literal: Event.Literal =>
-            div(
-              literal.value,
-              onClick.use(Page.Topic(topicId)) --> Page.page,
-              cursor.pointer,
-            )
-          case binding: Event.Binding =>
-            div(
-              cls := "flex flex-row",
-              "(",
-              showTopic(binding.subject, compact),
-              "-[",
-              showTopic(binding.predicate, compact),
-              "]",
-              div(
-                "->",
-                onClick.use(Page.Topic(binding.id)) --> Page.page,
-                cursor.pointer,
-              ),
-              showTopic(binding.obj, compact),
-              ")",
-            )
-
+        api.getTopic(topicId).map {
+          case Some(literal: Event.Literal) => compactLiteralValue(literal)
+          case Some(binding: Event.Binding) => compactBindingValue(binding)
+          case None                         => VModifier.empty
         },
-//          .handleErrorWith(error => IO(div(cls := "border-2 border-red-400", "Error: ", error.getMessage()))),
       )
     }
     else {
       div(
         cls := "border-2 border-blue-400 p-4",
-        ul(
-          db.getBindingsByObject(topicId).map { bindings =>
-            bindings.map(topicId =>
-              db.getTopic(topicId)
-                .map(_.asInstanceOf[Event.Binding])
-                .map { binding =>
-                  li(
-                    cls := "flex flex-row",
-                    showTopic(binding.subject, compact = true),
-                    div("->", onClick.use(Page.Topic(topicId)) --> Page.page, cursor.pointer),
-                    b(showTopic(binding.predicate, compact = true)),
-                  )
-                },
-            ): VModifier
-          },
-        ),
-        db.getTopic(topicId).map {
-          case literal: Event.Literal =>
-            div(literal.value, onClick.use(Page.Topic(topicId)) --> Page.page, cursor.pointer, cls := "text-2xl")
-          case binding: Event.Binding =>
-            div(
-              cls := "flex flex-row",
-              "(",
-              showTopic(binding.subject, compact = true),
-              "-[",
-              showTopic(binding.predicate, compact = true),
-              "]",
-              div(
-                "->",
-                onClick.use(Page.Topic(binding.id)) --> Page.page,
-                cursor.pointer,
-              ),
-              showTopic(binding.obj, compact = true),
-              ")",
-            )
-
+        reverseBindingsDetailed(topicId),
+        api.getTopic(topicId).map {
+          case Some(literal: Event.Literal) => largeLiteralValue(literal)
+          case Some(binding: Event.Binding) => largeBindingWithCompactDetails(binding)
         },
-        ul(
-          db.getBindingsBySubject(topicId).map { bindings =>
-            bindings.map(topicId =>
-              db.getTopic(topicId)
-                .map(_.asInstanceOf[Event.Binding])
-                .map { binding =>
-                  li(
-                    cls := "flex flex-row",
-                    b(showTopic(binding.predicate, compact = true)),
-                    div("->", onClick.use(Page.Topic(topicId)) --> Page.page, cursor.pointer),
-                    showTopic(binding.obj, compact = true),
-                  )
-                },
-            ): VModifier
-          },
-          newBindingForm(subject = topicId),
-        ),
+        attachedBindingsDetailed(topicId),
       )
     }
 
-  def newTopicForm() = {
+  private def attachedBindingsDetailed(topicId: TopicId) =
+    ul(
+      api.getBindingsBySubject(topicId).map { bindings =>
+        bindings.collect { case binding: Event.Binding =>
+          li(
+            cls := "flex flex-row",
+            showTopic(binding.predicate, compact = true),
+            div(" = ", onClick.use(Page.Topic(binding.id)) --> Page.page, cursor.pointer),
+            showTopic(binding.obj, compact = true),
+          )
+        }
+      },
+      newBindingForm(subject = topicId),
+    )
+
+  private def largeBindingWithCompactDetails(binding: Event.Binding) =
+    div(
+      cls := "flex flex-row hover:bg-blue-100",
+      "(",
+      showTopic(binding.subject, compact = true),
+      "-[",
+      showTopic(binding.predicate, compact = true),
+      "]",
+      div(
+        "->",
+        onClick.use(Page.Topic(binding.id)) --> Page.page,
+        cursor.pointer,
+      ),
+      showTopic(binding.obj, compact = true),
+      ")",
+    )
+
+  private def largeLiteralValue(literal: Event.Literal) =
+    div(literal.value, onClick.use(Page.Topic(literal.id)) --> Page.page, cursor.pointer, cls := "text-2xl")
+
+  private def reverseBindingsDetailed(topicId: TopicId) =
+    ul(
+      cls := "text-gray-400",
+      api
+        .getBindingsByObject(topicId)
+        .map(bindings =>
+          bindings.collect { case binding: Event.Binding =>
+            li(
+              cls := "flex flex-row",
+              showTopic(binding.subject, compact = true),
+              div(".", onClick.use(Page.Topic(binding.id)) --> Page.page, cursor.pointer),
+              b(showTopic(binding.predicate, compact = true)),
+              div("=", onClick.use(Page.Topic(binding.obj)) --> Page.page, cursor.pointer),
+            )
+          },
+        ): VModifier,
+    )
+
+  private def compactBindingValue(binding: Event.Binding) =
+    div(
+      cls := "flex flex-row",
+      "(",
+      showTopic(binding.subject, compact = true),
+      "-[",
+      showTopic(binding.predicate, compact = true),
+      "]",
+      div(
+        "->#",
+        onClick.use(Page.Topic(binding.id)).foreach(println),
+        cursor.pointer,
+      ),
+      showTopic(binding.obj, compact = true),
+      ")",
+    )
+
+  private def compactLiteralValue(literal: Event.Literal) =
+    div(
+      literal.value,
+      onClick.use(Page.Topic(literal.id)) --> Page.page,
+      cursor.pointer,
+    )
+
+  def newLiteralForm(): VNode = {
     val fieldValue = Subject.behavior("")
     div(
       syncedTextInput(fieldValue),
@@ -137,6 +145,7 @@ object Main {
         onClick.doAsync[IO] {
           for {
             value   <- IO(fieldValue.now())
+            _       <- IO(println("ui"))
             topicId <- createLiteral(value)
             _       <- IO(Page.page.onNext(Page.Topic(topicId)))
           } yield ()
@@ -145,7 +154,7 @@ object Main {
     )
   }
 
-  def newBindingForm(subject: Event.TopicId) = {
+  def newBindingForm(subject: Event.TopicId): VNode = {
     val predicateValue = Subject.behavior("")
     val objectValue    = Subject.behavior("")
     div(
@@ -161,7 +170,6 @@ object Main {
             predicateId    <- createLiteral(predicateValue)
             objectId       <- createLiteral(objectValue)
             topicId        <- createBinding(subject, predicateId, objectId)
-            _              <- IO(window.location.reload())
           } yield ()
         },
       ),
@@ -169,30 +177,30 @@ object Main {
   }
 
   def createLiteral(value: String): IO[Event.TopicId] = for {
-    topicId   <- IO(db.newId())
-    versionId <- IO(db.newId())
-//    _         <- db.postEvent(
-//                   new Event.Literal(
-//                     id = topicId,
-//                     value = value,
-//                   ),
-//                 )
+    topicId   <- IO(api.newId())
+    versionId <- IO(api.newId())
+    _         <- api.writeTopic(
+                   Event.Literal(
+                     id = topicId,
+                     value = value,
+                   ),
+                 )
   } yield topicId
 
   def createBinding(subject: Event.TopicId, predicate: Event.TopicId, obj: Event.TopicId): IO[Event.TopicId] = for {
-    topicId   <- IO(db.newId())
-    versionId <- IO(db.newId())
-//    _         <- db.postEvent(
-//                   new Event.Binding(
-//                     id = topicId,
-//                     subject = subject,
-//                     predicate = predicate,
-//                     obj = obj,
-//                   ),
-//                 )
+    topicId   <- IO(api.newId())
+    versionId <- IO(api.newId())
+    _         <- api.writeTopic(
+                   Event.Binding(
+                     id = topicId,
+                     subject = subject,
+                     predicate = predicate,
+                     obj = obj,
+                   ),
+                 )
   } yield topicId
 
-  def syncedTextInput(subject: Subject[String]) =
+  def syncedTextInput(subject: Subject[String]): VNode =
     input(
       tpe := "text",
       value.<--[Observable](subject),

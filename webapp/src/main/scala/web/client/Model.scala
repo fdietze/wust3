@@ -1,27 +1,45 @@
 package web.client
 import cats.effect.{ContextShift, IO}
-import colibri.firebase.{circeConverter, docSubject}
+import colibri.firebase.{circeConverter, docObservable, docSubject, queryObservable}
 import colibri.{Observable, Subject}
+import io.circe.{Decoder, Encoder}
 import io.circe.generic.extras.{Configuration, ConfiguredJsonCodec}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.{Decoder, Encoder}
 import org.scalajs.dom.window
 import web.client.Event.TopicId
 
-object Event {
-  type TopicId   = String
-  type VersionId = String
-  type LiteralId = TopicId
+import scala.scalajs.js
 
-// Annotation is required when using semi-automatic derivation with configuration
-// https://github.com/circe/circe-generic-extras/blob/master/generic-extras/src/main/scala/io/circe/generic/extras/Configuration.scala
+trait Api {
+  def getTopic(topicId: Event.TopicId): Observable[Option[Event.Topic]]
+  def getBindingsBySubject(subjectId: Event.TopicId): Observable[js.Array[Event.Topic]]
+  def getBindingsByObject(objectId: Event.TopicId): Observable[js.Array[Event.Topic]]
+  def writeTopic(topic: Event.Topic): IO[Unit]
+  def newId(): String
+}
+
+object Event {
+  type TopicId = String
+
+  // Annotation is required when using semi-automatic derivation with configuration
+  // https://github.com/circe/circe-generic-extras/blob/master/generic-extras/src/main/scala/io/circe/generic/extras/Configuration.scala
   @ConfiguredJsonCodec
   sealed trait Topic {
     def id: TopicId
-//    def version: VersionId
-//    def parent: Option[VersionId]
-//    def timestamp: Long
   }
+
+  case class Literal(
+    id: TopicId,
+    value: String,
+  ) extends Topic
+
+  case class Binding(
+    id: TopicId,
+    subject: TopicId,
+    predicate: TopicId,
+    obj: TopicId,
+  ) extends Topic
+
   object Topic {
     implicit val genDevConfig: Configuration =
       Configuration.default.withDiscriminator("_type")
@@ -29,40 +47,9 @@ object Event {
     implicit val decoder: Decoder[Topic] = deriveDecoder
     implicit val encoder: Encoder[Topic] = deriveEncoder
   }
-
-  case class Literal(
-    val id: TopicId,
-//    version: VersionId,
-//    parent: Option[VersionId],
-//    timestamp: Long,
-    //
-    val value: String,
-    // schema: Set[LiteralId]
-  ) extends Topic
-
-  case class Binding(
-    val id: TopicId,
-//    version: VersionId,
-//    parent: Option[VersionId],
-//    timestamp: Long,
-    //
-    val subject: TopicId,
-    val predicate: LiteralId,
-    val obj: TopicId,
-    // cardinality: Option[Int]
-  ) extends Topic
 }
 
-trait Api[F[_]] {
-  def getTopic(topicId: Event.TopicId): F[Event.Topic]
-  def getBindingsBySubject(subjectId: Event.TopicId): F[Seq[Event.TopicId]]
-  def getBindingsByObject(subjectId: Event.TopicId): F[Seq[Event.TopicId]]
-//  def postEvent(event: Event.Event): IO[Unit]
-  def newId(): String
-  def now(): Long
-}
-
-object FirebaseDatabase extends Api[Observable] {
+object FirebaseDatabase extends Api {
   import typings.firebaseApp.mod.{initializeApp, FirebaseOptions}
   import typings.firebaseFirestore.mod._
 
@@ -86,72 +73,29 @@ object FirebaseDatabase extends Api[Observable] {
     connectFirestoreEmulator(db, "localhost", 8080)
   }
 
-  val sub: Subject[Option[Event.Topic]] = docSubject(
-    doc(db: typings.firebaseFirestore.mod.Firestore, "test", "aaxyz")
-      .withConverter(circeConverter[Event.Topic]),
-  )
-  sub.foreach(println(_))
-  sub.onNext(Some(Event.Binding("jo", "hi", "a", "x")))
+  override def getTopic(topicId: TopicId): Observable[Option[Event.Topic]] =
+    docObservable(doc(db, "topics", topicId).withConverter(circeConverter[Event.Topic]))
 
-  override def getTopic(topicId: TopicId): Observable[Event.Topic] = {
-    val document = doc(db, "topics", "other", "something")
-    println(document)
-    ???
-  }
+  override def getBindingsBySubject(subjectId: TopicId): Observable[js.Array[Event.Topic]] =
+    queryObservable(
+      query(
+        collection(db, "topics"),
+        where("_type", WhereFilterOp.EqualssignEqualssign, "Binding"),
+        where("subject", WhereFilterOp.EqualssignEqualssign, subjectId),
+      ).withConverter(circeConverter[Event.Topic]),
+    ).map(_.map(_.data().get))
 
-  override def getBindingsBySubject(subjectId: TopicId): Observable[Seq[TopicId]] = ???
+  override def getBindingsByObject(subjectId: TopicId): Observable[js.Array[Event.Topic]] =
+    queryObservable(
+      query(
+        collection(db, "topics"),
+        where("_type", WhereFilterOp.EqualssignEqualssign, "Binding"),
+        where("obj", WhereFilterOp.EqualssignEqualssign, subjectId),
+      ).withConverter(circeConverter[Event.Topic]),
+    ).map(_.map(_.data().get))
 
-  override def getBindingsByObject(subjectId: TopicId): Observable[Seq[TopicId]] = ???
+  override def writeTopic(topic: Event.Topic): IO[Unit] =
+    IO.fromFuture(IO(setDoc[Event.Topic](doc(db, "topics", topic.id).withConverter(circeConverter[Event.Topic]), topic).toFuture))
 
-//  override def postEvent(event: Event.Event): IO[Unit] = ???
-
-  override def newId(): String = ???
-
-  override def now(): Long = ???
+  override def newId(): String = util.Random.alphanumeric.take(10).mkString
 }
-
-//object LocalStorageDatabase extends Api[IO] {
-//
-//  val topics                                         = new LocalStorageMap[Event.VersionId, Event.Topic](namespace = "topics")
-//  val currentTopicVersion                            = new LocalStorageMap[Event.TopicId, Event.VersionId](namespace = "currentTopicVersion")
-//  val bindingsBySubject                              = new LocalStorageMap[Event.TopicId, Seq[Event.TopicId]](namespace = "bindingBySubject")
-//  val bindingsByObject                               = new LocalStorageMap[Event.TopicId, Seq[Event.TopicId]](namespace = "bindingByObject")
-//  def topicById(topicId: Event.TopicId): Event.Topic = {
-//    val versionId = currentTopicVersion(topicId)
-//    topics(versionId)
-//  }
-//
-//  override def getTopic(topicId: Event.TopicId): IO[Event.Topic] = IO {
-//    println(s"getTopic: ${topicId} -> ${topicById(topicId)}")
-//    topicById(topicId)
-//  }
-//
-//  override def getBindingsBySubject(subjectId: Event.TopicId): IO[Seq[Event.TopicId]] = IO {
-//    println(s"getBindingsBySubject: ${subjectId} -> ${bindingsBySubject(subjectId)}")
-//    bindingsBySubject(subjectId)
-//  }
-//
-//  override def getBindingsByObject(objectId: Event.TopicId): IO[Seq[Event.TopicId]] = IO {
-//    println(s"getBindingsByObject: ${objectId} -> ${bindingsByObject(objectId)}")
-//    bindingsByObject(objectId)
-//  }
-//
-//  def postEvent(event: Event.Event): IO[Unit] = IO {
-//    println(event)
-//    event match {
-//      case topic: Event.Literal     => topics(topic.version) = topic
-//      case topic: Event.Binding     =>
-//        topics(topic.version) = topic
-//        bindingsBySubject.updateWith(topic.subject) { seqOpt =>
-//          Some(seqOpt.fold(Seq(topic.id))(_ :+ topic.id))
-//        }
-//        bindingsByObject.updateWith(topic.obj) { seqOpt =>
-//          Some(seqOpt.fold(Seq(topic.id))(_ :+ topic.id))
-//        }
-//        ()
-//      case Head(topicId, versionId) => currentTopicVersion(topicId) = versionId
-//    }
-//  }
-//  def newId()                                 = util.Random.alphanumeric.take(10).mkString
-//  def now()                                   = System.currentTimeMillis()
-//}

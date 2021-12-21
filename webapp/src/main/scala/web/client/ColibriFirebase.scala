@@ -37,7 +37,7 @@ package object firebase {
     docObservable(document),
   )
 
-  def queryObservable[T <: js.Object](query: Query_[T]): Observable[js.Array[QueryDocumentSnapshot[T]]] =
+  def queryObservable[T](query: Query_[T]): Observable[js.Array[QueryDocumentSnapshot[T]]] =
     Observable.create { observer =>
       val unsubscribe = onSnapshot(query, (querySnapshot: QuerySnapshot[T]) => observer.onNext(querySnapshot.docs))
       Cancelable(unsubscribe)
