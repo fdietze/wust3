@@ -38,11 +38,11 @@ object Main {
     )
 
   def focusTopic(topicId: Event.TopicId, seen: Set[Event.TopicId] = Set.empty): VNode =
-    if (seen(topicId)) div("recursion", cls := "text-gray-300")
+    if (seen(topicId)) div("recursion", cls := "text-gray-400 text-xs p-2")
     else
       div(
         cls                                 := "flex flex-col",
-        cls                                 := "border-4 border-sky-100 p-2 mr-2",
+        cls                                 := "border-4 border-sky-100 p-2 mr-2 mb-4",
         api.getTopic(topicId).map {
           case Some(literal: Event.Literal) => focusLiteral(literal)
           case Some(binding: Event.Binding) => focusBinding(binding)
@@ -75,7 +75,7 @@ object Main {
           .map { topics =>
             val bindings =
               topics.collect { case binding: Event.Binding =>
-                div(cls := "flex flex-row", focusTopic(binding.subject, seen), focusTopic(binding.predicate, seen))
+                div(cls := "flex flex-row", focusTopic(binding.subject, seen), ".", focusTopic(binding.predicate, seen))
               }
             if (bindings.nonEmpty) {
               div(
@@ -88,7 +88,7 @@ object Main {
       ),
       div(
         api
-          .getBindingsByObject(topicId)
+          .getBindingsByPredicate(topicId)
           .map { topics =>
             val bindings =
               topics.collect { case binding: Event.Binding =>
@@ -109,7 +109,7 @@ object Main {
           .map { topics =>
             val bindings =
               topics.collect { case binding: Event.Binding =>
-                div(cls := "flex flex-row", focusTopic(binding.predicate, seen), focusTopic(binding.obj, seen))
+                div(cls := "flex flex-row", focusTopic(binding.predicate, seen), "=", focusTopic(binding.obj, seen))
               }
             if (bindings.nonEmpty) {
               div(
