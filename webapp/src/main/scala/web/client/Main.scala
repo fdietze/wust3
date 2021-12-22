@@ -22,9 +22,6 @@ object Main {
   TailwindCss
   Css // load css
 
-//  console.log("TESTENV")
-//  console.log(js.Dynamic.global.TESTENV)
-
   val api: Api = FirebaseApi
 
   def main(args: Array[String]): Unit =
