@@ -5,15 +5,14 @@ import colibri.router._
 
 sealed trait Page
 object Page {
-  case object Home                         extends Page
-  case class Topic(topicId: Event.TopicId) extends Page
+  case object Home                     extends Page
+  case class Atom(topicId: api.AtomId) extends Page
 
   val page: Subject[Page] = Router.path.imapSubject[Page] {
-    case Page.Home           => Root
-    case Page.Topic(topicId) =>
-      Root / "topic" / topicId
+    case Page.Home         => Root
+    case Page.Atom(atomId) => Root / "atom" / atomId
   } {
-    case Root / "topic" / topicId => Page.Topic(topicId)
-    case _                        => Page.Home
+    case Root / "atom" / atomId => Page.Atom(atomId)
+    case _                      => Page.Home
   }
 }
