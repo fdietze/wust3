@@ -1,13 +1,14 @@
 package colibri
 
+import cats.effect.{ContextShift, IO}
 import io.circe.parser.decode
 import io.circe.{Decoder, Encoder}
 import io.circe.syntax._
 import org.scalablytyped.runtime.StringDictionary
 import typings.firebaseFirestore.mod.{collection => _, doc => _, _}
 import org.scalajs.dom.console
-import scala.scalajs.js.JSConverters._
 
+import scala.scalajs.js.JSConverters._
 import scala.scalajs.js
 
 package object firebase {
@@ -15,7 +16,8 @@ package object firebase {
 
   def docObservable[T](document: DocumentReference[T]): Observable[Option[T]] =
     Observable.create { observer =>
-      val unsubscribe = onSnapshot(document, (snapshot: DocumentSnapshot[T]) => observer.onNext(snapshot.data().toOption))
+      val unsubscribe =
+        onSnapshot(document, (snapshot: DocumentSnapshot[T]) => observer.onNext(snapshot.data().toOption))
       Cancelable(unsubscribe)
     }
 
@@ -41,6 +43,9 @@ package object firebase {
       val unsubscribe = onSnapshot(query, (querySnapshot: QuerySnapshot[T]) => observer.onNext(querySnapshot.docs))
       Cancelable(unsubscribe)
     }
+
+  def getDocsIO[T](query: Query_[T])(implicit cs: ContextShift[IO]): IO[js.Array[QueryDocumentSnapshot[T]]] =
+    IO.fromFuture(IO(getDocs(query).toFuture)).map(_.docs)
 
   def circeConverter[T: Encoder: Decoder]: FirestoreDataConverter[T] = js.Dynamic
     .literal(

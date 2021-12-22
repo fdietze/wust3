@@ -1,20 +1,22 @@
 package web.client
 import cats.effect.{ContextShift, IO}
-import colibri.firebase.{circeConverter, docObservable, docSubject, queryObservable}
+import colibri.firebase.{circeConverter, docObservable, docSubject, getDocsIO, queryObservable}
 import colibri.{Observable, Subject}
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.extras.{Configuration, ConfiguredJsonCodec}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import org.scalajs.dom.window
+import typings.firebaseFirestore.mod.where
 
 import scala.scalajs.js
 
 package object api {
-
   type AtomId = String
+
   trait Api {
     def getAtom(atomId: AtomId): Observable[Option[Atom]]
     def setAtom(atom: Atom): IO[Unit]
+    def findAtom(query: String): IO[Seq[Atom]]
     def newId(): String
   }
 
@@ -27,7 +29,7 @@ package object api {
 //  @ConfiguredJsonCodec
   case class Atom(
     id: AtomID,
-    _type: AtomID,
+//    _type: AtomID,
     value: Option[String],
     targets: Map[String, AtomID],
   )
@@ -76,6 +78,20 @@ object FirebaseApi extends api.Api {
 
   override def setAtom(atom: api.Atom): IO[Unit] =
     IO.fromFuture(IO(setDoc[api.Atom](atomDoc(atom.id), atom).toFuture))
+
+  override def findAtom(queryString: String): IO[Seq[api.Atom]] =
+    for {
+      snapshots <- getDocsIO(
+                     query(
+                       collection(db, atomCollection),
+                       // primitive prefix search
+                       where("value", WhereFilterOp.GreaterthansignEqualssign, queryString),
+                       where("value", WhereFilterOp.LessthansignEqualssign, s"${queryString}z"),
+                     )
+                       .withConverter(atomConverter),
+                   )
+      atoms      = snapshots.flatMap(_.data().toOption).toSeq
+    } yield atoms
 
   override def newId(): String = util.Random.alphanumeric.take(10).mkString
 }
