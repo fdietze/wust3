@@ -32,8 +32,6 @@ object Main {
         case Page.Home         => newValueForm()
         case Page.Atom(atomId) => focusAtom(atomId)
       },
-      div("search test:"),
-      dbApi.findAtom("a").map(_.map(x => div(x.value))),
     )
 
   def focusAtom(atomId: api.AtomId): VNode =
@@ -65,19 +63,25 @@ object Main {
     )
 
   def newTargetForm(atom: api.Atom): VNode = {
-    val keySubject   = Subject.behavior("")
-    val valueSubject = Subject.behavior("")
+    val keySubject    = Subject.behavior("")
+    val targetSubject = Subject.behavior[Either[String, api.Atom]](Left(""))
     div(
       syncedTextInput(keySubject),
-      syncedTextInput(valueSubject),
+      completionInput[api.Atom](
+        resultSubject = targetSubject,
+        search = query => dbApi.findAtom(query),
+        show = x => x.value.getOrElse("[no value]"),
+      ),
       button(
         "new Target",
         onClick.doAsync(for {
-          key         <- IO(keySubject.now())
-          value       <- IO(valueSubject.now())
-          valueAtomId <- IO(dbApi.newId())
-          _           <- dbApi.setAtom(api.Atom(valueAtomId, Some(value), Map.empty))
-          _           <- dbApi.setAtom(atom.copy(targets = atom.targets.updated(key, valueAtomId)))
+          key        <- IO(keySubject.now())
+          target     <- IO(targetSubject.now())
+          targetAtom <- IO(target match {
+                          case Left(value) => api.Atom(dbApi.newId(), Some(value), Map.empty); case Right(atom) => atom
+                        })
+          _          <- dbApi.setAtom(targetAtom)
+          _          <- dbApi.setAtom(atom.copy(targets = atom.targets.updated(key, targetAtom.id)))
         } yield ()),
       ),
     )

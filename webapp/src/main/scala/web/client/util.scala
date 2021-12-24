@@ -1,8 +1,8 @@
 package web
 import cats.effect.{IO, SyncIO}
 import colibri.{Observable, Subject}
-import outwatch.{VModifier, VNode}
-import outwatch.dsl.{cls, input, onBlur, onChange, onClick, onInput, tpe, value}
+import outwatch._
+import outwatch.dsl._
 
 package object util {
   def syncedTextInput(subject: Subject[String]): VNode =
@@ -30,4 +30,45 @@ package object util {
     }
   }
 
+  def completionInput[T](
+    resultSubject: Subject[Either[String, T]] = Subject.behavior[Either[String, T]](Left("")),
+    search: String => IO[Seq[T]] = (x: String) => IO(Seq.empty),
+    show: T => String = (x: T) => "",
+  ): VNode = {
+    val querySubject                      = Subject.behavior("")
+    val searchResults: Observable[Seq[T]] =
+      querySubject
+        .debounceMillis(500)
+        .switchMap(query => if (query.isEmpty) Observable(Seq.empty) else Observable.fromAsync(search(query)))
+
+    div(
+      cls := "relative inline-block",
+      resultSubject.map {
+        case Left(_)         =>
+          VModifier(
+            syncedTextInput(querySubject),
+            div(
+              searchResults.map(results =>
+                VModifier(
+                  results.map(result =>
+                    div(
+                      show(result),
+                      onClick.stopPropagation.use(Right(result)) --> resultSubject,
+                      cls := "cursor-pointer hover:bg-blue-200 p-2",
+                    ),
+                  ),
+                  VModifier.ifTrue(results.nonEmpty)(cls := "absolute bg-blue-100"),
+                ),
+              ),
+            ),
+          )
+        case Right(selected) =>
+          div(
+            show(selected),
+            cls := "bg-blue-100",
+            onClick.stopPropagation(querySubject).map(Left(_)) --> resultSubject,
+          )
+      },
+    )
+  }
 }
