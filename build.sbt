@@ -41,7 +41,7 @@ lazy val webapp = project
     libraryDependencies              ++= Seq(
       "com.github.cornerman.outwatch" %%% "outwatch"             % versions.outwatch,
       "com.github.cornerman.outwatch" %%% "outwatch-util"        % versions.outwatch, // Store, Websocket, Http
-      "com.github.cornerman"          %%% "colibri-router"       % "0.1.2",
+      "com.github.cornerman"          %%% "colibri-router"       % versions.colibri,
       "io.circe"                      %%% "circe-core"           % versions.circe,
       "io.circe"                      %%% "circe-generic"        % versions.circe,
       "io.circe"                      %%% "circe-parser"         % versions.circe,
