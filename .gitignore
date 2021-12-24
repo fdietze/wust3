@@ -33,3 +33,5 @@ metals.sbt
 .bloop/
 /.bsp
 /.envrc
+firestore-debug.log
+ui-debug.log
