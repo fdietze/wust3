@@ -1,14 +1,14 @@
 Global / onChangedBuildSource := IgnoreSourceChanges // not working well with webpack devserver
 
 ThisBuild / version      := "0.1.0-SNAPSHOT"
-ThisBuild / scalaVersion := "2.13.7"
+ThisBuild / scalaVersion := "3.1.1-RC1"
 
 val versions = new {
   val funStack = "0.1.5"
   val funPack  = "0.1.4"
   val circe    = "0.14.1"
-  val outwatch = "7e260b7"
-  val colibri  = "0.1.2"
+  val outwatch = "1.0.0-RC4+26-371f7792-SNAPSHOT"
+  val colibri  = "0.1.2+9-e8601a4b-SNAPSHOT"
 }
 
 ThisBuild / resolvers ++= Seq(
@@ -18,16 +18,15 @@ ThisBuild / resolvers ++= Seq(
 )
 
 lazy val commonSettings = Seq(
-  addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
+  /* addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full), */
   scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat
-  scalacOptions ++= Seq("-Ymacro-annotations"),
 )
 
 lazy val jsSettings = Seq(
-  webpack / version   := "4.46.0",
-  useYarn             := true,
+  webpack / version := "4.46.0",
+  useYarn           := true,
   scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
-  libraryDependencies += "org.portable-scala" %%% "portable-scala-reflect" % "1.1.1",
+  /* libraryDependencies += "org.portable-scala" %%% "portable-scala-reflect" % "1.1.1", */
 )
 
 lazy val webapp = project
@@ -39,13 +38,13 @@ lazy val webapp = project
   .settings(commonSettings, jsSettings)
   .settings(
     libraryDependencies              ++= Seq(
-      "com.github.cornerman.outwatch" %%% "outwatch"             % versions.outwatch,
-      "com.github.cornerman.outwatch" %%% "outwatch-util"        % versions.outwatch, // Store, Websocket, Http
-      "com.github.cornerman"          %%% "colibri-router"       % versions.colibri,
-      "io.circe"                      %%% "circe-core"           % versions.circe,
-      "io.circe"                      %%% "circe-generic"        % versions.circe,
-      "io.circe"                      %%% "circe-parser"         % versions.circe,
-      "io.circe"                      %%% "circe-generic-extras" % versions.circe,
+      "io.github.outwatch"   %%% "outwatch"       % versions.outwatch,
+      "io.github.outwatch"   %%% "outwatch-util"  % versions.outwatch, // Store, Websocket, Http
+      "com.github.cornerman" %%% "colibri-router" % versions.colibri,
+      "io.circe"             %%% "circe-core"     % versions.circe,
+      "io.circe"             %%% "circe-generic"  % versions.circe,
+      "io.circe"             %%% "circe-parser"   % versions.circe,
+      /* "io.circe"             %%% "circe-generic-extras" % versions.circe, */
     ),
     Compile / npmDependencies        ++= Seq(
       "snabbdom" -> "git://github.com/outwatch/snabbdom.git#semver:0.7.5", // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293

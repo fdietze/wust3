@@ -10,9 +10,9 @@ object Page {
 
   val page: Subject[Page] = Router.path.imapSubject[Page] {
     case Page.Home         => Root
-    case Page.Atom(atomId) => Root / "atom" / atomId
+    case Page.Atom(atomId) => Root / "atom" / atomId.value
   } {
-    case Root / "atom" / atomId => Page.Atom(atomId)
+    case Root / "atom" / atomId => Page.Atom(api.AtomId(atomId))
     case _                      => Page.Home
   }
 }

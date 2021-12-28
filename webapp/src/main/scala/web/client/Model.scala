@@ -3,7 +3,6 @@ import cats.effect.{ContextShift, IO}
 import colibri.firebase.{circeConverter, docObservable, docSubject, getDocsIO, queryObservable}
 import colibri.{Observable, Subject}
 import io.circe.{Decoder, Encoder}
-import io.circe.generic.extras.{Configuration, ConfiguredJsonCodec}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import org.scalajs.dom.window
 import typings.firebaseFirestore.mod.where
@@ -11,13 +10,17 @@ import typings.firebaseFirestore.mod.where
 import scala.scalajs.js
 
 package object api {
-  type AtomId = String
+  opaque type AtomId = String
+  object AtomId {
+    def apply(value: String): AtomId = value
+    extension (atomId: AtomId) { def value: String = atomId }
+  }
 
   trait Api {
     def getAtom(atomId: AtomId): Observable[Option[Atom]]
     def setAtom(atom: Atom): IO[Unit]
     def findAtom(query: String): IO[Seq[Atom]]
-    def newId(): String
+    def newId(): AtomId
   }
 
   // Annotation is required when using semi-automatic derivation with configuration
@@ -25,13 +28,13 @@ package object api {
 
   // http://www.hypergraphdb.org/docs/hypergraphdb.pdf
 
-  type AtomID = String
 //  @ConfiguredJsonCodec
   case class Atom(
-    id: AtomID,
+    id: AtomId,
+    // ab: Int | String,
 //    _type: AtomID,
     value: Option[String],
-    targets: Map[String, AtomID],
+    targets: Map[String, AtomId],
   )
   object Atom {
 //    val discriminator                        = "_type"
@@ -71,10 +74,10 @@ object FirebaseApi extends api.Api {
   val atomConverter: FirestoreDataConverter[api.Atom] = circeConverter[api.Atom]
 
   def atomDoc(atomId: api.AtomId): DocumentReference[api.Atom] =
-    doc(db, atomCollection, atomId).withConverter(atomConverter)
+    doc(db, atomCollection, atomId.value).withConverter(atomConverter)
 
   override def getAtom(atomId: api.AtomId): Observable[Option[api.Atom]] =
-    docObservable(doc(db, atomCollection, atomId).withConverter(atomConverter))
+    docObservable(atomDoc(atomId))
 
   override def setAtom(atom: api.Atom): IO[Unit] =
     IO.fromFuture(IO(setDoc[api.Atom](atomDoc(atom.id), atom).toFuture))
@@ -93,5 +96,5 @@ object FirebaseApi extends api.Api {
       atoms      = snapshots.flatMap(_.data().toOption).toSeq
     } yield atoms
 
-  override def newId(): String = util.Random.alphanumeric.take(10).mkString
+  override def newId(): api.AtomId = api.AtomId(util.Random.alphanumeric.take(10).mkString)
 }

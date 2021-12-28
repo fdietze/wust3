@@ -8,12 +8,12 @@ package object util {
   def syncedTextInput(subject: Subject[String]): VNode =
     input(
       tpe := "text",
-      value.<--[Observable](subject),
+      value <-- subject,
       onInput.value --> subject,
       cls := "border border-black",
     )
 
-  def inlineEditable(rendered: VNode, value: String, onEdit: (String) => IO[Unit]): VModifier = {
+  def inlineEditable(rendered: VNode, value: String, onEdit: (String) => IO[Unit]): VDomModifier = {
     val isEditingSubject = Subject.behavior(false)
     isEditingSubject.map { isEditing =>
       if (isEditing) SyncIO {
@@ -25,7 +25,7 @@ package object util {
           },
           onBlur.foreach(_ => isEditingSubject.onNext(false)),
         )
-      }: VModifier
+      }: VDomModifier
       else rendered(onClick.use(true) --> isEditingSubject)
     }
   }
@@ -38,7 +38,7 @@ package object util {
     val querySubject = Subject.behavior("")
 
     div(
-      VModifier.managed(
+      managed(
         SyncIO(
           querySubject
             .withLatestMap(resultSubject)((query, result) =>
@@ -53,14 +53,14 @@ package object util {
       cls := "relative inline-block",
       resultSubject.map {
         case Left(_)         =>
-          VModifier(
+          VDomModifier(
             syncedTextInput(querySubject),
             div(
               querySubject
                 .debounceMillis(300)
                 .switchMap(query => if (query.isEmpty) Observable(Seq.empty) else Observable.fromAsync(search(query)))
                 .map(results =>
-                  VModifier(
+                  VDomModifier(
                     results.map(result =>
                       div(
                         show(result),
@@ -68,7 +68,7 @@ package object util {
                         cls := "hover:bg-blue-200 p-2 cursor-pointer",
                       ),
                     ),
-                    VModifier.ifTrue(results.nonEmpty)(cls := "absolute bg-blue-100"),
+                    VDomModifier.ifTrue(results.nonEmpty)(cls := "absolute bg-blue-100"),
                   ),
                 ),
             ),

@@ -24,11 +24,11 @@ object Main {
   val dbApi: api.Api = FirebaseApi
 
   def main(args: Array[String]): Unit =
-    Outwatch.renderInto[SyncIO]("#app", page()).unsafeRunSync()
+    OutWatch.renderInto[SyncIO]("#app", page()).unsafeRunSync()
 
   def page(): VNode =
     div(
-      Page.page.map[VModifier] {
+      Page.page.map[VDomModifier] {
         case Page.Home         => newValueForm()
         case Page.Atom(atomId) => focusAtom(atomId)
       },
@@ -82,6 +82,8 @@ object Main {
                         })
           _          <- dbApi.setAtom(targetAtom)
           _          <- dbApi.setAtom(atom.copy(targets = atom.targets.updated(key, targetAtom.id)))
+          _          <- IO(keySubject.onNext(""))
+          _          <- IO(targetSubject.onNext(Left("")))
         } yield ()),
       ),
     )
