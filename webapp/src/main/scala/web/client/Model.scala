@@ -7,6 +7,7 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import org.scalajs.dom.window
 import typings.firebaseFirestore.mod.where
 
+import scala.concurrent.Future
 import scala.scalajs.js
 
 package object api {
@@ -18,8 +19,8 @@ package object api {
 
   trait Api {
     def getAtom(atomId: AtomId): Observable[Option[Atom]]
-    def setAtom(atom: Atom): IO[Unit]
-    def findAtom(query: String): IO[Seq[Atom]]
+    def setAtom(atom: Atom): Future[Unit]
+    def findAtom(query: String): Future[Seq[Atom]]
     def newId(): AtomId
   }
 
@@ -79,10 +80,10 @@ object FirebaseApi extends api.Api {
   override def getAtom(atomId: api.AtomId): Observable[Option[api.Atom]] =
     docObservable(atomDoc(atomId))
 
-  override def setAtom(atom: api.Atom): IO[Unit] =
-    IO.fromFuture(IO(setDoc[api.Atom](atomDoc(atom.id), atom).toFuture))
+  override def setAtom(atom: api.Atom): Future[Unit] =
+    setDoc[api.Atom](atomDoc(atom.id), atom).toFuture
 
-  override def findAtom(queryString: String): IO[Seq[api.Atom]] =
+  override def findAtom(queryString: String): Future[Seq[api.Atom]] =
     for {
       snapshots <- getDocsIO(
                      query(
@@ -92,7 +93,7 @@ object FirebaseApi extends api.Api {
                        where("value", WhereFilterOp.LessthansignEqualssign, s"${queryString}z"),
                      )
                        .withConverter(atomConverter),
-                   )
+                   ).unsafeToFuture()
       atoms      = snapshots.flatMap(_.data().toOption).toSeq
     } yield atoms
 

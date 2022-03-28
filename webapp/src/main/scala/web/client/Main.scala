@@ -2,12 +2,13 @@ package web.client
 
 import cats.effect.{IO, SyncIO}
 import colibri.Subject
-import outwatch._
-import outwatch.dsl._
-import web.util._
+import outwatch.*
+import outwatch.dsl.*
+import web.util.*
 
+import scala.concurrent.Future
 import scala.scalajs.js
-import scala.scalajs.js.annotation._
+import scala.scalajs.js.annotation.*
 
 @js.native
 @JSImport("src/main/css/index.css", JSImport.Namespace)
@@ -20,6 +21,8 @@ object TailwindCss extends js.Object
 object Main {
   TailwindCss
   Css // load css
+
+  implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 
   val dbApi: api.Api = FirebaseApi
 
@@ -74,16 +77,16 @@ object Main {
       ),
       button(
         "new Target",
-        onClick.doAsync(for {
-          key        <- IO(keySubject.now())
-          target     <- IO(targetSubject.now())
-          targetAtom <- IO(target match {
+        onClick.foreach(for {
+          key        <- Future.successful(keySubject.now())
+          target     <- Future.successful(targetSubject.now())
+          targetAtom <- Future.successful(target match {
                           case Left(value) => api.Atom(dbApi.newId(), Some(value), Map.empty); case Right(atom) => atom
                         })
           _          <- dbApi.setAtom(targetAtom)
           _          <- dbApi.setAtom(atom.copy(targets = atom.targets.updated(key, targetAtom.id)))
-          _          <- IO(keySubject.onNext(""))
-          _          <- IO(targetSubject.onNext(Left("")))
+          _          <- Future.successful(keySubject.onNext(""))
+          _          <- Future.successful(targetSubject.onNext(Left("")))
         } yield ()),
       ),
     )
@@ -95,11 +98,11 @@ object Main {
       syncedTextInput(valueSubject),
       button(
         "new Value",
-        onClick.doAsync(for {
-          value  <- IO(valueSubject.now())
-          atomId <- IO(dbApi.newId())
+        onClick.foreach(for {
+          value  <- Future.successful(valueSubject.now())
+          atomId <- Future.successful(dbApi.newId())
           _      <- dbApi.setAtom(api.Atom(atomId, Some(value), Map.empty))
-          _      <- IO(Page.page.onNext(Page.Atom(atomId)))
+          _      <- Future.successful(Page.page.onNext(Page.Atom(atomId)))
         } yield ()),
       ),
     )
