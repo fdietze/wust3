@@ -55,7 +55,7 @@ package object firebase {
       fromFirestore = { (snapshot: QueryDocumentSnapshot[DocumentData]) =>
         snapshot.data().flatMap { data =>
           val decoded = decode[T](js.JSON.stringify(data))
-          decoded.left.foreach(_ => console.warn("Could not decode: ", data))
+          decoded.left.foreach(errors => console.warn("Could not decode: ", errors, "\n", data))
           decoded.toOption.getOrElse(js.undefined)
         }
       },
