@@ -1,14 +1,14 @@
 Global / onChangedBuildSource := IgnoreSourceChanges // not working well with webpack devserver
 
 ThisBuild / version      := "0.1.0-SNAPSHOT"
-ThisBuild / scalaVersion := "3.1.1-RC1"
+ThisBuild / scalaVersion := "3.1.1"
 
 val versions = new {
   val funStack = "0.1.5"
   val funPack  = "0.1.4"
   val circe    = "0.14.1"
-  val outwatch = "1.0.0-RC4+26-371f7792-SNAPSHOT"
-  val colibri  = "0.1.2+9-e8601a4b-SNAPSHOT"
+  val outwatch = "1.0.0-RC6+2-6728c9c7-SNAPSHOT"
+  val colibri  = "0.2.6"
 }
 
 ThisBuild / resolvers ++= Seq(
