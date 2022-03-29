@@ -4,7 +4,6 @@ ThisBuild / version      := "0.1.0-SNAPSHOT"
 ThisBuild / scalaVersion := "3.1.1"
 
 val versions = new {
-  val funStack = "0.1.5"
   val funPack  = "0.1.4"
   val circe    = "0.14.1"
   val outwatch = "1.0.0-RC6+2-6728c9c7-SNAPSHOT"
@@ -49,9 +48,11 @@ lazy val webapp = project
     Compile / npmDependencies        ++= Seq(
       "snabbdom" -> "git://github.com/outwatch/snabbdom.git#semver:0.7.5", // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293
       "firebase" -> "9.6.1",
+      "daisyui"  -> "2.13.3",
     ),
     stIgnore                         ++= List(
       "snabbdom", // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293
+      "daisyui",
     ),
     Compile / npmDevDependencies     ++= Seq(
       "@fun-stack/fun-pack" -> versions.funPack, // sane defaults for webpack development and production, see webpack.config.*.js

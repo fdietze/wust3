@@ -1,8 +1,9 @@
 module.exports = {
   purge: ["../../../../src/main/resources/index.html", "../../../../src/**/*.scala"],
-  darkMode: false, // or 'media' or 'class'
-  variants: {
-    extend: {},
+  plugins: [
+    require('daisyui'),
+  ],
+  daisyui: {
+    logs: false, // otherwise daisy logs its ui version
   },
-  plugins: [],
 };
