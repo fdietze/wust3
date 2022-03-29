@@ -1,7 +1,7 @@
-package web.client
+package webapp
 
 import colibri.Subject
-import colibri.router._
+import colibri.router.*
 
 sealed trait Page {
   final def href = outwatch.dsl.href := s"#${Page.toPath(this).pathString}"
@@ -12,6 +12,7 @@ object Page {
 
   sealed trait AtomsPage extends Page
   object Atoms {
+    import atoms._
     case object Home                     extends AtomsPage
     case class Atom(topicId: api.AtomId) extends AtomsPage
     object Paths {
@@ -20,17 +21,37 @@ object Page {
     }
   }
 
+  sealed trait HkPage extends Page
+  object Hk {
+    import hk._
+    case object Home                       extends HkPage
+    case class Topic(topicId: api.TopicId) extends HkPage
+    object Paths {
+      val Home  = Root / "hk"
+      val Topic = Home / "topic"
+    }
+  }
+
   val fromPath: Path => Page = {
-    case Atoms.Paths.Atom / atomId => Atoms.Atom(api.AtomId(atomId))
+    case Atoms.Paths.Atom / atomId => Atoms.Atom(atoms.api.AtomId(atomId))
     case Atoms.Paths.Home / _      => Atoms.Home
     case Atoms.Paths.Home          => Atoms.Home
-    case _                         => Page.Home
+
+    case Hk.Paths.Topic / topicId => Hk.Topic(topicId)
+    case Hk.Paths.Home / _        => Hk.Home
+    case Hk.Paths.Home            => Hk.Home
+
+    case _ => Page.Home
   }
 
   val toPath: Page => Path = {
-    case Home               => Root
+    case Home => Root
+
     case Atoms.Home         => Atoms.Paths.Home
     case Atoms.Atom(atomId) => Atoms.Paths.Atom / atomId.value
+
+    case Hk.Home           => Hk.Paths.Home
+    case Hk.Topic(topicId) => Hk.Paths.Topic / topicId
   }
 
   val current: Subject[Page] = Router.path

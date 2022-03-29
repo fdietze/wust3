@@ -1,16 +1,15 @@
-package web.client
+package webapp.atoms
 
-import cats.effect.{IO, SyncIO}
 import colibri.Subject
-import outwatch.*
-import outwatch.dsl.*
-import web.util.*
+import outwatch._
+import outwatch.dsl._
+import webapp.util._
+
+import webapp.Page
 
 import scala.concurrent.Future
-import scala.scalajs.js
-import scala.scalajs.js.annotation.*
 
-object AtomsApp {
+object App {
   implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 
   val dbApi: api.Api = FirebaseApi
@@ -59,7 +58,8 @@ object AtomsApp {
           key        <- Future.successful(keySubject.now())
           target     <- Future.successful(targetSubject.now())
           targetAtom <- Future.successful(target match {
-                          case Left(value) => api.Atom(dbApi.newId(), Some(value), Map.empty); case Right(atom) => atom
+                          case Left(value) => api.Atom(dbApi.newId(), Some(value), Map.empty);
+                          case Right(atom) => atom
                         })
           _          <- dbApi.setAtom(targetAtom)
           _          <- dbApi.setAtom(atom.copy(targets = atom.targets.updated(key, targetAtom.id)))

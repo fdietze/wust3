@@ -1,10 +1,10 @@
-package web.client
+package webapp
 
 import cats.effect.{IO, SyncIO}
 import colibri.Subject
 import outwatch.*
 import outwatch.dsl.*
-import web.util.*
+import webapp.util.*
 
 import scala.concurrent.Future
 import scala.scalajs.js
@@ -21,9 +21,12 @@ object App {
   def page(): VNode =
     div(
       Page.current.map[VDomModifier] {
-        case Page.Atoms.Home         => AtomsApp.newValueForm()
-        case Page.Atoms.Atom(atomId) => AtomsApp.focusAtom(atomId)
-        case _                       => div()
+        case Page.Atoms.Home         => atoms.App.newValueForm()
+        case Page.Atoms.Atom(atomId) => atoms.App.focusAtom(atomId)
+
+        case Page.Hk.Home => hk.App.newFrameForm()
+
+        case _ => div()
       },
     )
 
@@ -42,7 +45,7 @@ object App {
       div(
         cls := "space-x-2",
         link("Atoms", Page.Atoms.Home, _.isInstanceOf[Page.AtomsPage]),
-        link("HK", Page.Home, _ => false),
+        link("HK", Page.Hk.Home, _.isInstanceOf[Page.HkPage]),
       ),
     )
   }

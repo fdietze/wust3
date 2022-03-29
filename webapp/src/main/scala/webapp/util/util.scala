@@ -1,4 +1,5 @@
-package web
+package webapp
+
 import colibri._
 import scala.concurrent.Future
 import cats.effect.SyncIO
@@ -88,7 +89,8 @@ package object util {
       },
     )
   }
-  def intersperse[T](s: Seq[T], sep: T): Seq[T]        = {
+
+  def intersperse[T](s: Seq[T], sep: T): Seq[T] = {
     val b = Seq.newBuilder[T]
     var i = 0
     for (x <- s) {
@@ -99,34 +101,4 @@ package object util {
     b.result()
   }
 
-  @inline implicit class ListSubjectOperations[A](val handler: Subject[Seq[A]]) extends AnyVal {
-    def sequence: Observable[Seq[Subject.Value[A]]] = new Observable[Seq[Subject.Value[A]]] {
-      def subscribe(sink: Observer[Seq[Subject.Value[A]]]): Cancelable =
-        handler.subscribe(
-          Observer.create(
-            sequence =>
-              sink.onNext(sequence.zipWithIndex.map { case (a, idx) =>
-                new Observer[A] with Observable.Value[A] {
-                  def now(): A = a
-
-                  def subscribe(sink: Observer[A]): Cancelable = {
-                    sink.onNext(a)
-                    Cancelable.empty
-                  }
-
-                  def onNext(value: A): Unit =
-                    handler.onNext(sequence.updated(idx, value))
-
-                  def onError(error: Throwable): Unit =
-                    sink.onError(error)
-                }
-              }),
-            sink.onError,
-          ),
-        )
-      // sequence.zipWithIndex.map { case (a, idx) =>
-      //   handler.lens(_(idx))((sequence, value) => sequence.updated(idx, value))
-      // }
-    }
-  }
 }

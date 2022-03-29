@@ -1,10 +1,10 @@
-package web.client
+package webapp
 
 import cats.effect.{IO, SyncIO}
 import colibri.Subject
 import outwatch.*
 import outwatch.dsl.*
-import web.util.*
+import webapp.util.*
 
 import scala.concurrent.Future
 import scala.scalajs.js

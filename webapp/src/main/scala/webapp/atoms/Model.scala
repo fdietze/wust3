@@ -1,9 +1,10 @@
-package web.client
+package webapp.atoms
+
 import cats.effect.{ContextShift, IO}
-import colibri.firebase.{circeConverter, docObservable, docSubject, getDocsIO, queryObservable}
+import colibri.firebase.*
 import colibri.{Observable, Subject}
-import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+import io.circe.{Decoder, Encoder}
 import org.scalajs.dom.window
 import typings.firebaseFirestore.mod.where
 
@@ -50,7 +51,7 @@ package object api {
 object FirebaseApi extends api.Api {
 
   import typings.firebaseApp.mod.{initializeApp, FirebaseOptions}
-  import typings.firebaseFirestore.mod._
+  import typings.firebaseFirestore.mod.*
 
   implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
   implicit val contextShift: ContextShift[IO]        = IO.contextShift(ec)
