@@ -7,6 +7,9 @@ const config = webDev({
   extraWatchDirs: [
     // "local" // frontend with local backend
     // "../terraform/.terraform/modules/uglot/serve/" // frontend with deployed backend
+  ],
+  extraStaticDirs: [
+    "src" // src for source maps
   ]
 });
 
