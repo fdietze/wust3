@@ -2,8 +2,15 @@
 
 Run
 
-```
+```bash
 sbt dev
+```
+
+and 
+
+```bash
+yarn install
+npx firebase emulators:start
 ```
 
 Then point your browser to <http://localhost:12345/>
