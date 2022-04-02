@@ -17,8 +17,15 @@ ThisBuild / resolvers ++= Seq(
 )
 
 lazy val commonSettings = Seq(
-  /* addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full), */
+  scalacOptions ++= Seq("-Vimplicits", "-Vtype-diffs"),
   scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat
+  libraryDependencies ++= Seq(
+    "com.github.rssh" %%% "dotty-cps-async" % "0.9.8",
+    "io.circe"        %%% "circe-core"      % versions.circe,
+    "io.circe"        %%% "circe-generic"   % versions.circe,
+    "io.circe"        %%% "circe-parser"    % versions.circe,
+    /* "io.circe"             %%% "circe-generic-extras" % versions.circe, */
+  ),
 )
 
 lazy val jsSettings = Seq(
@@ -40,10 +47,6 @@ lazy val webapp = project
       "io.github.outwatch"   %%% "outwatch"       % versions.outwatch,
       "io.github.outwatch"   %%% "outwatch-util"  % versions.outwatch, // Store, Websocket, Http
       "com.github.cornerman" %%% "colibri-router" % versions.colibri,
-      "io.circe"             %%% "circe-core"     % versions.circe,
-      "io.circe"             %%% "circe-generic"  % versions.circe,
-      "io.circe"             %%% "circe-parser"   % versions.circe,
-      /* "io.circe"             %%% "circe-generic-extras" % versions.circe, */
     ),
     Compile / npmDependencies        ++= Seq(
       "snabbdom" -> "git://github.com/outwatch/snabbdom.git#semver:0.7.5", // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293

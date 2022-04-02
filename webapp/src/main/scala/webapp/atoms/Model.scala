@@ -8,6 +8,9 @@ import io.circe.{Decoder, Encoder}
 import org.scalajs.dom.window
 import typings.firebaseFirestore.mod.where
 
+import cps.*                 // async, await
+import cps.monads.{given, *} // support for built-in monads (i.e. Future)
+
 import scala.concurrent.Future
 import scala.scalajs.js
 
@@ -85,18 +88,21 @@ object FirebaseApi extends api.Api {
     setDoc[api.Atom](atomDoc(atom.id), atom).toFuture
 
   override def findAtom(queryString: String): Future[Seq[api.Atom]] =
-    for {
-      snapshots <- getDocsIO(
-                     query(
-                       collection(db, atomCollection),
-                       // primitive prefix search
-                       where("value", WhereFilterOp.GreaterthansignEqualssign, queryString),
-                       where("value", WhereFilterOp.LessthansignEqualssign, s"${queryString}z"),
-                     )
-                       .withConverter(atomConverter),
-                   ).unsafeToFuture()
-      atoms      = snapshots.flatMap(_.data().toOption).toSeq
-    } yield atoms
+    async[Future] {
+      val snapshots = await(
+        getDocs(
+          query(
+            collection(db, atomCollection),
+            // primitive prefix search
+            where("value", WhereFilterOp.GreaterthansignEqualssign, queryString),
+            where("value", WhereFilterOp.LessthansignEqualssign, s"${queryString}z"),
+          )
+            .withConverter(atomConverter),
+        ),
+      ).docs
+      val atoms     = snapshots.flatMap(_.data().toOption).toSeq
+      atoms
+    }
 
   override def newId(): api.AtomId = api.AtomId(util.Random.alphanumeric.take(10).mkString)
 }
