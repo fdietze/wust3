@@ -43,6 +43,7 @@ package object api {
     targets: Map[String, AtomId],
 //    shape: Option[AtomId],
   )
+
   object Atom {
 //    val discriminator                        = "_type"
 //    implicit val genDevConfig: Configuration =
