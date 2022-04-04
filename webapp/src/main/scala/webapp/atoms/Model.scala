@@ -34,12 +34,14 @@ package object api {
   // http://www.hypergraphdb.org/docs/hypergraphdb.pdf
 
 //  @ConfiguredJsonCodec
+
   case class Atom(
     id: AtomId,
     // ab: Int | String,
 //    _type: AtomID,
     value: Option[String],
     targets: Map[String, AtomId],
+//    shape: Option[AtomId],
   )
   object Atom {
 //    val discriminator                        = "_type"

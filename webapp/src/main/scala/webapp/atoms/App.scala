@@ -74,20 +74,58 @@ object App {
   }
 
   def newValueForm(): VNode = {
-    val valueSubject = Subject.behavior("")
-    div(
-      syncedTextInput(valueSubject)(cls := "input input-sm"),
-      button(
-        "new Value",
-        cls                             := "btn",
-        onClick.foreach(async[Future] {
-          val value  = valueSubject.now()
-          val atomId = dbApi.newId()
-          await(dbApi.setAtom(api.Atom(atomId, Some(value), Map.empty)))
-          Page.current.onNext(Page.Atoms.Atom(atomId))
-        }),
-      ),
+    import webapp.util.form.{given, *}
+
+    case class AtomForm(
+      // id: AtomId,
+      // ab: Int | String,
+//    _type: AtomID,
+      value: Option[String],
+      targets: Map[String, Either[String, api.Atom]],
+//    shape: Option[AtomId],
     )
+
+    given Form[Either[String, api.Atom]] with {
+      def default                                          = Left("")
+      def form(subject: Subject[Either[String, api.Atom]]) = {
+
+        completionInput[api.Atom](
+          resultSubject = subject,
+          search = query => dbApi.findAtom(query),
+          show = x => x.value.getOrElse("[no value]"),
+        )
+      }
+    }
+
+    case class Address(street: String, city: Option[String])
+
+    sealed trait MyType
+    case class Person(name: String, age: Int, address: Seq[Address]) extends MyType
+    case object Bla                                                  extends MyType
+
+    type T = AtomForm
+
+    val subject = Subject.behavior(summon[Form[T]].default)
+
+    div(
+      summon[Form[T]].form(subject),
+      div(subject.map(_.toString)),
+      // summon[Form[T]].form(subject),
+    )
+//    val valueSubject = Subject.behavior("")
+//    div(
+//      syncedTextInput(valueSubject)(cls := "input input-sm"),
+//      button(
+//        "new Value",
+//        cls                             := "btn",
+//        onClick.foreach(async[Future] {
+//          val value  = valueSubject.now()
+//          val atomId = dbApi.newId()
+//          await(dbApi.setAtom(api.Atom(atomId, Some(value), Map.empty)))
+//          Page.current.onNext(Page.Atoms.Atom(atomId))
+//        }),
+//      ),
+//    )
   }
 
 }

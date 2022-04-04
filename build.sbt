@@ -17,7 +17,6 @@ ThisBuild / resolvers ++= Seq(
 )
 
 lazy val commonSettings = Seq(
-  scalacOptions ++= Seq("-Vimplicits", "-Vtype-diffs"),
   scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat
   libraryDependencies ++= Seq(
     "com.github.rssh" %%% "dotty-cps-async" % "0.9.8",
