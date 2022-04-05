@@ -74,7 +74,7 @@ object App {
   }
 
   def newValueForm(): VNode = {
-    import webapp.util.form.{given, *}
+    import formidable.{given, *}
 
     case class AtomForm(
       // id: AtomId,
