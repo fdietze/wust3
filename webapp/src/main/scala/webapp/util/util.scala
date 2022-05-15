@@ -13,7 +13,6 @@ package object util {
       tpe := "text",
       value <-- subject,
       onInput.value --> subject,
-      cls := "border border-black",
     )
 
   def inlineEditable(rendered: VNode, value: String, onEdit: (String) => Future[Unit])(implicit
@@ -39,7 +38,7 @@ package object util {
     resultSubject: Subject[Either[String, T]] = Subject.behavior[Either[String, T]](Left("")),
     search: String => Future[Seq[T]] = (x: String) => Future.successful(Seq.empty),
     show: T => String = (x: T) => "",
-    // defaultTextFieldValue: String = "",
+    inputModifiers: VDomModifier = VDomModifier.empty,
   )(implicit
     ec: scala.concurrent.ExecutionContext,
   ): VNode = {
@@ -57,11 +56,12 @@ package object util {
       resultSubject.map {
         case Left(_)         =>
           VDomModifier(
-            syncedTextInput(querySubject)(inputSize),
+            syncedTextInput(querySubject)(inputSize, inputModifiers),
             div(
               querySubject
                 .debounceMillis(300)
                 .switchMap { query =>
+                  println(s"sending query: $query")
                   if (query.isEmpty) Observable(Seq.empty)
                   else Observable.fromFuture(search(query))
                 }

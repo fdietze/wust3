@@ -21,7 +21,7 @@ object App {
   def page(): VNode =
     div(
       Page.current.map[VDomModifier] {
-        case Page.Atoms.Home         => atoms.App.newValueForm()
+        case Page.Atoms.Home         => atoms.App.newAtomForm()
         case Page.Atoms.Atom(atomId) => atoms.App.focusAtom(atomId)
 
         case Page.Hk.Home => hk.App.newFrameForm()

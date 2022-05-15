@@ -43,7 +43,7 @@ lazy val webapp = project
   .settings(commonSettings, jsSettings)
   .settings(
     libraryDependencies              ++= Seq(
-      "com.github.fdietze"   %%% "formidable"       % "0.1.0-SNAPSHOT",
+      "com.github.fdietze"   %%% "formidable"     % "0.1.0-SNAPSHOT",
       "io.github.outwatch"   %%% "outwatch"       % versions.outwatch,
       "io.github.outwatch"   %%% "outwatch-util"  % versions.outwatch, // Store, Websocket, Http
       "com.github.cornerman" %%% "colibri-router" % versions.colibri,

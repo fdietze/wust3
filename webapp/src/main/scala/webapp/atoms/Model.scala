@@ -41,7 +41,7 @@ package object api {
 //    _type: AtomID,
     value: Option[String],
     targets: Map[String, AtomId],
-//    shape: Option[AtomId],
+    shape: Option[AtomId],
   )
 
   object Atom {

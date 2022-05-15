@@ -1,5 +1,5 @@
 module.exports = {
-  purge: ["../../../../src/main/resources/index.html", "../../../../src/**/*.scala"],
+  content: ["../../../../src/main/resources/index.html", "../../../../src/**/*.scala"],
   plugins: [
     require('daisyui'),
   ],

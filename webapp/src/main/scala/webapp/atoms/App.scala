@@ -61,7 +61,7 @@ object App {
           val key        = keySubject.now()
           val target     = targetSubject.now()
           val targetAtom = target match {
-            case Left(value) => api.Atom(dbApi.newId(), Some(value), Map.empty);
+            case Left(value) => api.Atom(dbApi.newId(), Some(value), targets = Map.empty, shape = None);
             case Right(atom) => atom
           }
           await(dbApi.setAtom(targetAtom))
@@ -73,59 +73,74 @@ object App {
     )
   }
 
-  def newValueForm(): VNode = {
+  def newAtomForm(): VNode = {
     import formidable.{given, *}
 
+    case class TargetPair(key: String, value: Either[String, api.Atom])
     case class AtomForm(
-      // id: AtomId,
-      // ab: Int | String,
-//    _type: AtomID,
       value: Option[String],
-      targets: Map[String, Either[String, api.Atom]],
-//    shape: Option[AtomId],
+      targets: Seq[TargetPair],
+      shape: Either[String, api.Atom],
     )
 
     given Form[Either[String, api.Atom]] with {
-      def default                                          = Left("")
-      def form(subject: Subject[Either[String, api.Atom]]) = {
-
+      def default = Left("")
+      def apply(
+        subject: Subject[Either[String, api.Atom]],
+        formModifiers: FormModifiers,
+      ): VNode = {
         completionInput[api.Atom](
           resultSubject = subject,
           search = query => dbApi.findAtom(query),
           show = x => x.value.getOrElse("[no value]"),
+          inputModifiers = formModifiers.inputModifiers,
         )
       }
     }
 
-    case class Address(street: String, city: Option[String])
-
-    sealed trait MyType
-    case class Person(name: String, age: Int, address: Seq[Address]) extends MyType
-    case object Bla                                                  extends MyType
-
-    type T = AtomForm
-
-    val subject = Subject.behavior(summon[Form[T]].default)
+    val subject = Form.subject[AtomForm]
 
     div(
-      summon[Form[T]].form(subject),
-      div(subject.map(_.toString)),
-      // summon[Form[T]].form(subject),
+      Form[AtomForm](
+        subject,
+        formModifiers = FormModifiers(
+          inputModifiers = VDomModifier(cls := "input input-sm input-bordered"),
+          checkboxModifiers = VDomModifier(cls := "checkbox checkbox-sm"),
+          buttonModifiers = VDomModifier(cls := "btn btn-sm"),
+        ),
+      ),
+      button(
+        "Create",
+        cls := "btn btn-sm",
+        onClick.foreach(async[Future] {
+          val value  = subject.now()
+          val atomId = dbApi.newId()
+
+          val targets: Map[String, api.AtomId] = await(Future.sequence(value.targets.map {
+            case TargetPair(key, Right(atom)) =>
+              Future.successful(key -> atom.id)
+            case TargetPair(key, Left(str))   =>
+              async[Future] {
+                val targetId = dbApi.newId()
+                await(dbApi.setAtom(api.Atom(targetId, Some(str), targets = Map.empty, shape = None)))
+                key -> targetId
+              }
+          })).toMap
+
+          await(
+            dbApi.setAtom(
+              api.Atom(
+                atomId,
+                value.value,
+                targets = targets,
+                shape = value.shape.toOption.map(_.id),
+              ),
+            ),
+          )
+          Page.current.onNext(Page.Atoms.Atom(atomId))
+        }),
+      ),
     )
-//    val valueSubject = Subject.behavior("")
-//    div(
-//      syncedTextInput(valueSubject)(cls := "input input-sm"),
-//      button(
-//        "new Value",
-//        cls                             := "btn",
-//        onClick.foreach(async[Future] {
-//          val value  = valueSubject.now()
-//          val atomId = dbApi.newId()
-//          await(dbApi.setAtom(api.Atom(atomId, Some(value), Map.empty)))
-//          Page.current.onNext(Page.Atoms.Atom(atomId))
-//        }),
-//      ),
-//    )
   }
 
 }
