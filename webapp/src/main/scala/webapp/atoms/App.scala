@@ -4,6 +4,7 @@ import colibri.Subject
 import outwatch._
 import outwatch.dsl._
 import webapp.util._
+import cats.syntax.all._
 
 import cps.*                 // async, await
 import cps.monads.{given, *} // support for built-in monads (i.e. Future)
@@ -23,6 +24,7 @@ object App {
         .getAtom(atomId)
         .map(_.map { atom =>
           div(
+            atom.shape.map(atomId => showAtomValue(atomId)(cls := "badge")),
             div(
               inlineEditable(
                 span(atom.value),
@@ -78,9 +80,9 @@ object App {
 
     case class TargetPair(key: String, value: Either[String, api.Atom])
     case class AtomForm(
+      shape: Either[String, api.Atom],
       value: Option[String],
       targets: Seq[TargetPair],
-      shape: Either[String, api.Atom],
     )
 
     given Form[Either[String, api.Atom]] with {
@@ -99,6 +101,55 @@ object App {
     }
 
     val subject = Form.subject[AtomForm]
+    subject
+      .map(_.shape)
+      .collect { case Right(shapeAtom) => shapeAtom }
+      .distinctByOnEquals(_.id)
+      .delayMillis(100) // TODO: why is this needed?
+      .foreach { addShapeFields } // TODO: handle cancelable
+
+    def addShapeFields(shapeAtom: api.Atom): colibri.Cancelable = {
+      subject.onNext(
+        subject
+          .now()
+          .copy(targets =
+            subject.now().targets ++
+              shapeAtom.targets.map { case (key -> value) => TargetPair(key, Left("")) }.toSeq,
+          ),
+      )
+
+      shapeAtom.shape.flatTraverse { atomId =>
+        dbApi.getAtom(atomId)
+      }.foreach(_.foreach(addShapeFields))
+    }
+
+    def createAtom(formData: AtomForm): Future[api.AtomId] = async[Future] {
+      val atomId = dbApi.newId()
+
+      val targets: Map[String, api.AtomId] = await(Future.sequence(formData.targets.map {
+        case TargetPair(key, Right(atom)) =>
+          Future.successful(key -> atom.id)
+        case TargetPair(key, Left(str))   =>
+          async[Future] {
+            val targetId = dbApi.newId()
+            await(dbApi.setAtom(api.Atom(targetId, Some(str), targets = Map.empty, shape = None)))
+            key -> targetId
+          }
+      })).toMap
+
+      await(
+        dbApi.setAtom(
+          api.Atom(
+            atomId,
+            formData.value,
+            targets = targets,
+            shape = formData.shape.toOption.map(_.id),
+          ),
+        ),
+      )
+
+      atomId
+    }
 
     div(
       Form[AtomForm](
@@ -113,30 +164,7 @@ object App {
         "Create",
         cls := "btn btn-sm",
         onClick.foreach(async[Future] {
-          val value  = subject.now()
-          val atomId = dbApi.newId()
-
-          val targets: Map[String, api.AtomId] = await(Future.sequence(value.targets.map {
-            case TargetPair(key, Right(atom)) =>
-              Future.successful(key -> atom.id)
-            case TargetPair(key, Left(str))   =>
-              async[Future] {
-                val targetId = dbApi.newId()
-                await(dbApi.setAtom(api.Atom(targetId, Some(str), targets = Map.empty, shape = None)))
-                key -> targetId
-              }
-          })).toMap
-
-          await(
-            dbApi.setAtom(
-              api.Atom(
-                atomId,
-                value.value,
-                targets = targets,
-                shape = value.shape.toOption.map(_.id),
-              ),
-            ),
-          )
+          val atomId = await(createAtom(subject.now()))
           Page.current.onNext(Page.Atoms.Atom(atomId))
         }),
       ),
