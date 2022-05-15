@@ -41,13 +41,14 @@ package object api {
 //    _type: AtomID,
     value: Option[String],
     targets: Map[String, AtomId],
-    shape: Option[AtomId],
+    shape: Vector[AtomId],
   )
 
   object Atom {
 //    val discriminator                        = "_type"
 //    implicit val genDevConfig: Configuration =
 //      Configuration.default.withDiscriminator(discriminator)
+    def literal(id: AtomId, value: String) = Atom(id, Some(value), targets = Map.empty, shape = Vector.empty)
 
     implicit val decoder: Decoder[Atom] = deriveDecoder
     implicit val encoder: Encoder[Atom] = deriveEncoder

@@ -63,7 +63,7 @@ object App {
           val key        = keySubject.now()
           val target     = targetSubject.now()
           val targetAtom = target match {
-            case Left(value) => api.Atom(dbApi.newId(), Some(value), targets = Map.empty, shape = None);
+            case Left(value) => api.Atom.literal(dbApi.newId(), value);
             case Right(atom) => atom
           }
           await(dbApi.setAtom(targetAtom))
@@ -80,7 +80,7 @@ object App {
 
     case class TargetPair(key: String, value: Either[String, api.Atom])
     case class AtomForm(
-      shape: Either[String, api.Atom],
+      shape: Seq[Either[String, api.Atom]],
       value: Option[String],
       targets: Seq[TargetPair],
     )
@@ -102,25 +102,24 @@ object App {
 
     val subject = Form.subject[AtomForm]
     subject
-      .map(_.shape)
-      .collect { case Right(shapeAtom) => shapeAtom }
-      .distinctByOnEquals(_.id)
+      .map(_.shape.collect { case Right(shapeAtom) => shapeAtom })
+      .distinctOnEquals
       .delayMillis(100) // TODO: why is this needed?
-      .foreach { addShapeFields } // TODO: handle cancelable
+      .foreach { _.map { addShapeFields } } // TODO: handle cancelable
 
     def addShapeFields(shapeAtom: api.Atom): colibri.Cancelable = {
       subject.onNext(
         subject
           .now()
           .copy(targets =
-            subject.now().targets ++
-              shapeAtom.targets.map { case (key -> value) => TargetPair(key, Left("")) }.toSeq,
+            (subject.now().targets ++
+              shapeAtom.targets.map { case (key -> value) => TargetPair(key, Left("")) }.toSeq).distinctBy(_.key),
           ),
       )
 
-      shapeAtom.shape.flatTraverse { atomId =>
+      shapeAtom.shape.traverse { atomId =>
         dbApi.getAtom(atomId)
-      }.foreach(_.foreach(addShapeFields))
+      }.foreach(_.flatten.foreach(addShapeFields))
     }
 
     def createAtom(formData: AtomForm): Future[api.AtomId] = async[Future] {
@@ -132,7 +131,7 @@ object App {
         case TargetPair(key, Left(str))   =>
           async[Future] {
             val targetId = dbApi.newId()
-            await(dbApi.setAtom(api.Atom(targetId, Some(str), targets = Map.empty, shape = None)))
+            await(dbApi.setAtom(api.Atom.literal(targetId, str)))
             key -> targetId
           }
       })).toMap
@@ -143,7 +142,7 @@ object App {
             atomId,
             formData.value,
             targets = targets,
-            shape = formData.shape.toOption.map(_.id),
+            shape = formData.shape.flatMap(_.map(_.id).toOption).toVector,
           ),
         ),
       )
