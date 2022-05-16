@@ -12,11 +12,35 @@ import cps.monads.{given, *} // support for built-in monads (i.e. Future)
 import webapp.Page
 
 import scala.concurrent.Future
+import formidable.{given, *}
 
 object App {
   implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 
   val dbApi: api.Api = FirebaseApi
+
+  def layout(focus: Option[api.AtomId] = None): VNode = {
+    div(
+      search(),
+      hr(),
+      focus.map(focusAtom),
+    )
+  }
+
+  def search(): VNode = {
+    val targetSubject = Subject.behavior[Either[String, api.Atom]](Left(""))
+    div(
+      managedFunction(() =>
+        targetSubject.collect { case Right(atom) => Page.Atoms.Atom(atom.id) }.subscribe(Page.current),
+      ),
+      completionInput[api.Atom](
+        resultSubject = targetSubject,
+        search = query => dbApi.findAtom(query),
+        show = x => x.value.getOrElse("[no value]"),
+        inputModifiers = VDomModifier(placeholder := "Search", cls := "input input-sm input-bordered"),
+      ),
+    )
+  }
 
   def focusAtom(atomId: api.AtomId): VNode =
     div(
@@ -76,8 +100,6 @@ object App {
   }
 
   def newAtomForm(): VNode = {
-    import formidable.{given, *}
-
     case class TargetPair(key: String, value: Either[String, api.Atom])
     case class AtomForm(
       shape: Seq[Either[String, api.Atom]],
