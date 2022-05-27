@@ -43,25 +43,22 @@ package object util {
     ec: scala.concurrent.ExecutionContext,
   ): VNode = {
     val querySubject: Subject[String] = resultSubject.transformSubject[String](
-      _.contramap { x =>
-        println(s"writing querysub $x"); Left(x)
-      },
+      _.contramap(Left(_)),
     )(
       _.collect { case Left(str) => str }.prepend(""),
     )
-    val inputSize                     = cls := "w-40"
+    val inputSize = cls := "w-40"
 
     div(
       cls := "relative inline-block",
       resultSubject.map {
-        case Left(_)         =>
+        case Left(_) =>
           VDomModifier(
             syncedTextInput(querySubject)(inputSize, inputModifiers),
             div(
               querySubject
                 .debounceMillis(300)
                 .switchMap { query =>
-                  println(s"sending query: $query")
                   if (query.isEmpty) Observable(Seq.empty)
                   else Observable.fromFuture(search(query))
                 }
@@ -71,20 +68,22 @@ package object util {
                       div(
                         show(result),
                         onClick.stopPropagation.use(Right(result)) --> resultSubject,
-                        cls := "hover:bg-blue-200 p-2 cursor-pointer",
+                        cls := "hover:bg-blue-200 hover:dark:bg-blue-800 p-2 cursor-pointer",
                       ),
                     ),
-                    VDomModifier.ifTrue(results.nonEmpty)(cls := "absolute bg-blue-100 z-10"),
+                    VDomModifier
+                      .ifTrue(results.nonEmpty)(cls := "absolute bg-blue-100 dark:bg-blue-900 dark:text-white z-10"),
                   ),
                 ),
             ),
           )
         case Right(selected) =>
           div(
-            show(selected),
-            cls := "bg-blue-100 px-2 cursor-pointer border border-blue-300",
+            span(show(selected)),
+            cls := "h-full px-2 bg-blue-100 dark:bg-blue-900 dark:text-white cursor-pointer rounded",
+            cls := "flex items-center",
             inputSize,
-            onClick.stopPropagation(querySubject).map(Left(_)) --> resultSubject,
+            onClick.stopPropagation.use(Left(show(selected))) --> resultSubject,
           )
       },
     )

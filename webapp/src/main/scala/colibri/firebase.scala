@@ -30,7 +30,7 @@ package object firebase {
 //        // TODO: https://stackoverflow.com/a/66774294
 //        val plainObject = js.JSON.parse(js.JSON.stringify(data)).asInstanceOf[T]
         setDoc(document, data)
-      case None       => deleteDoc(document.asInstanceOf[DocumentReference[Any]])
+      case None => deleteDoc(document.asInstanceOf[DocumentReference[Any]])
     }
 
   def docSubject[T](document: DocumentReference[T]): Subject[Option[T]] = Subject.from(

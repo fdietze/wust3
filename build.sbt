@@ -42,22 +42,22 @@ lazy val webapp = project
   )
   .settings(commonSettings, jsSettings)
   .settings(
-    libraryDependencies              ++= Seq(
+    libraryDependencies ++= Seq(
       "com.github.fdietze"   %%% "formidable"     % "0.1.0-SNAPSHOT",
       "io.github.outwatch"   %%% "outwatch"       % versions.outwatch,
       "io.github.outwatch"   %%% "outwatch-util"  % versions.outwatch, // Store, Websocket, Http
       "com.github.cornerman" %%% "colibri-router" % versions.colibri,
     ),
-    Compile / npmDependencies        ++= Seq(
+    Compile / npmDependencies ++= Seq(
       "snabbdom" -> "github:outwatch/snabbdom.git#semver:0.7.5", // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293
-      "firebase" -> "9.6.1",
+      "firebase" -> "9.8.1",
       "daisyui"  -> "2.13.3",
     ),
-    stIgnore                         ++= List(
+    stIgnore ++= List(
       "snabbdom", // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293
       "daisyui",
     ),
-    Compile / npmDevDependencies     ++= Seq(
+    Compile / npmDevDependencies ++= Seq(
       "@fun-stack/fun-pack" -> versions.funPack, // sane defaults for webpack development and production, see webpack.config.*.js
       "autoprefixer"        -> "10.4.1",
       "postcss"             -> "8.4.5",

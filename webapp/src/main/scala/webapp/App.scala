@@ -15,6 +15,7 @@ object App {
 
   def layout = div(
     pageHeader(),
+    hr(),
     page(),
   )
 
@@ -37,7 +38,7 @@ object App {
         case false => cls := "btn-ghost"
       }
 
-      a(cls := "btn", name, page.href, styling)
+      a(cls := "btn btn-xs", name, page.href, styling)
     }
 
     header(

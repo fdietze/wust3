@@ -13,6 +13,8 @@ import webapp.Page
 
 import scala.concurrent.Future
 import formidable.{given, *}
+import scala.util.Success
+import scala.util.Failure
 
 object App {
   implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
@@ -20,10 +22,22 @@ object App {
   val dbApi: api.Api = FirebaseApi
 
   def layout(focus: Option[api.AtomId] = None): VNode = {
+    val showCreateAtomForm = Subject.behavior(false)
     div(
-      search(),
+      div(
+        cls := "flex items-center",
+        button(
+          "Create Atom",
+          cls := "btn btn-xs btn-ghost",
+          onClick(showCreateAtomForm).map(!_) --> showCreateAtomForm,
+        ),
+        search(),
+      ),
       hr(),
-      focus.map(focusAtom),
+      showCreateAtomForm.map[VDomModifier] {
+        case true  => newAtomForm()
+        case false => focus.map(focusAtom)
+      },
     )
   }
 
@@ -42,7 +56,17 @@ object App {
     )
   }
 
-  def focusAtom(atomId: api.AtomId): VNode =
+  def focusAtom(atomId: api.AtomId): VNode = {
+    def removeButton(atom: api.Atom, key: String) = {
+      button(
+        "remove",
+        cls := "btn btn-xs btn-ghost",
+        onClick.foreach {
+          dbApi.setAtom(atom.copy(targets = atom.targets - key))
+        },
+      )
+    }
+
     div(
       dbApi
         .getAtom(atomId)
@@ -57,12 +81,25 @@ object App {
               ),
             ),
             atom.targets.map { case (key, valueAtomId) =>
-              div(cls := "ml-4", key, " = ", showAtomValue(valueAtomId))
+              div(
+                cls := "ml-4",
+                key,
+                " = ",
+                showAtomValue(valueAtomId),
+                removeButton(atom, key),
+              )
             }.toSeq,
             newTargetForm(atom).apply(cls := "ml-4"),
           )
         }),
+      "References:",
+      dbApi.getReferences(atomId).map {
+        _.map { reference =>
+          div(reference.key, ": ", showAtomValue(reference.atomId))
+        }
+      },
     )
+  }
 
   def showAtomValue(atomId: api.AtomId): VNode =
     span(
@@ -75,25 +112,31 @@ object App {
     val keySubject    = Subject.behavior("")
     val targetSubject = Subject.behavior[Either[String, api.Atom]](Left(""))
     div(
-      syncedTextInput(keySubject),
+      cls := "flex h-8",
+      syncedTextInput(keySubject)(cls := "input input-sm input-bordered", placeholder := "key"),
       completionInput[api.Atom](
         resultSubject = targetSubject,
         search = query => dbApi.findAtom(query),
         show = x => x.value.getOrElse("[no value]"),
-      ),
+        inputModifiers = VDomModifier(cls := "input input-sm input-bordered", placeholder := "value"),
+      ).append(cls := "h-full ml-1"),
       button(
-        "new Target",
+        cls := "btn btn-sm btn-ghost",
+        "add",
         onClick.foreach(async[Future] {
-          val key        = keySubject.now()
-          val target     = targetSubject.now()
+          val key    = keySubject.now()
+          val target = targetSubject.now()
           val targetAtom = target match {
             case Left(value) => api.Atom.literal(dbApi.newId(), value);
             case Right(atom) => atom
           }
           await(dbApi.setAtom(targetAtom))
-          await(dbApi.setAtom(atom.copy(targets = atom.targets.updated(key, targetAtom.id))))
+          await(dbApi.setAtom(atom.copy(targets = atom.targets + (key -> targetAtom.id))))
           keySubject.onNext("")
           targetSubject.onNext(Left(""))
+        }.onComplete {
+          case Success(_) => println("created target")
+          case Failure(e) => e.printStackTrace()
         }),
       ),
     )
@@ -126,7 +169,7 @@ object App {
     subject
       .map(_.shape.collect { case Right(shapeAtom) => shapeAtom })
       .distinctOnEquals
-      .delayMillis(100) // TODO: why is this needed?
+      .delayMillis(100)                     // TODO: why is this needed?
       .foreach { _.map { addShapeFields } } // TODO: handle cancelable
 
     def addShapeFields(shapeAtom: api.Atom): colibri.Cancelable = {
@@ -150,7 +193,7 @@ object App {
       val targets: Map[String, api.AtomId] = await(Future.sequence(formData.targets.map {
         case TargetPair(key, Right(atom)) =>
           Future.successful(key -> atom.id)
-        case TargetPair(key, Left(str))   =>
+        case TargetPair(key, Left(str)) =>
           async[Future] {
             val targetId = dbApi.newId()
             await(dbApi.setAtom(api.Atom.literal(targetId, str)))
@@ -187,6 +230,9 @@ object App {
         onClick.foreach(async[Future] {
           val atomId = await(createAtom(subject.now()))
           Page.current.onNext(Page.Atoms.Atom(atomId))
+        }.onComplete {
+          case Success(_) => println("created atom")
+          case Failure(e) => e.printStackTrace()
         }),
       ),
     )

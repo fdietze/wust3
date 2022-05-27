@@ -225,8 +225,8 @@ package object api {
     //    implicit val genDevConfig: Configuration =
     //      Configuration.default.withDiscriminator(discriminator)
 
-    implicit val decoderCV: Decoder[CastingValue]  = deriveDecoder
-    implicit val encoderCV: Encoder[CastingValue]  = deriveEncoder
+    implicit val decoderCV: Decoder[CastingValue] = deriveDecoder
+    implicit val encoderCV: Encoder[CastingValue] = deriveEncoder
     implicit val decoderCK: KeyDecoder[CastingKey] = new KeyDecoder[CastingKey] {
       override def apply(s: String): Option[CastingKey] = CastingKey.decode(s)
     }
@@ -258,7 +258,7 @@ object FirebaseApi extends api.Api {
           case frame: api.Frame =>
             objR.updateDynamic("names")(frame.names.map(_.id).toJSArray)
             objR.updateDynamic("topicIds")(frame.subtopics.toJSArray)
-          case _                => ()
+          case _ => ()
         }
         console.log("toFirestore3", objR)
         objR.asInstanceOf[DocumentData]
@@ -307,7 +307,7 @@ object FirebaseApi extends api.Api {
     val first       = Future.firstCompletedOf(List(frameFuture, nameFuture))
     first.flatMap {
       case Some(frame) => Future.successful(Some(frame))
-      case None        =>
+      case None =>
         for {
           frameData <- frameFuture
           nameData  <- nameFuture
@@ -324,8 +324,7 @@ object FirebaseApi extends api.Api {
     try {
       var id = setDoc[api.Topic](frameDoc(frame.id), frameAsTopic).toFuture
       id.map(_ => frame.id)
-    }
-    catch {
+    } catch {
       case e: Throwable =>
         console.error("addFrame2", e)
         throw e
@@ -336,10 +335,10 @@ object FirebaseApi extends api.Api {
   }
 
   override def findFrames(queryString: String): Future[Seq[api.Frame]] = {
-    val parts     = queryString.split("\\^").map(_.trim).filter(_.nonEmpty).toSeq
+    val parts = queryString.split("\\^").map(_.trim).filter(_.nonEmpty).toSeq
     println(parts)
     val partNames = parts.traverse(p => findNames(p))
-    val results   = partNames.flatMap { s =>
+    val results = partNames.flatMap { s =>
       if (s.forall(_.nonEmpty))
         s.traverse(names =>
           getDocs(

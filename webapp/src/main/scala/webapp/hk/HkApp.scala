@@ -26,7 +26,7 @@ object App {
             api.Frame(
               type_id = api.CastingKey.N(api.Name("rdf:Object")),
               targets = Map(
-                api.CastingKey.N(api.Name("eg:test"))  -> api.CastingValue.N(api.Name("Some name")),
+                api.CastingKey.N(api.Name("eg:test")) -> api.CastingValue.N(api.Name("Some name")),
                 api.CastingKey.N(api.Name("eg:test2")) ->
                   api.CastingValue.L(api.Literal.StringLiteral("Some literal", "en")),
                 api.CastingKey.N(api.Name("eg:test3")) -> api.CastingValue.T("topic_id"),
@@ -49,7 +49,7 @@ object App {
 
   def newFrameForm(): VNode = {
     val frameSubject = Subject.behavior[Either[String, api.Topic]](Left(""))
-    val castings     =
+    val castings =
       Subject.behavior[Seq[(Either[String, api.Topic], Either[String, api.Topic])]](
         Seq((Left(""), Left(""))),
       )
@@ -111,7 +111,7 @@ object App {
             case Left(str)                => Some(api.CastingKey.N(api.Name(str)))
             case Right(topic)             => api.CastingKey.fromTopic(topic)
           }
-          val keys      = castings
+          val keys = castings
             .now()
             .map(_._1)
             .map(_ match {
@@ -119,7 +119,7 @@ object App {
               case Left(str)                => Some(api.CastingKey.N(api.Name(str)))
               case Right(topic)             => api.CastingKey.fromTopic(topic)
             })
-          val values    = castings
+          val values = castings
             .now()
             .map(_._2)
             .map(_ match {

@@ -5,6 +5,7 @@ import colibri.firebase.*
 import colibri.{Observable, Subject}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.{Decoder, Encoder}
+import io.circe.syntax._
 import org.scalajs.dom.window
 import typings.firebaseFirestore.mod.where
 
@@ -25,6 +26,7 @@ package object api {
     def getAtom(atomId: AtomId): Observable[Option[Atom]]
     def setAtom(atom: Atom): Future[Unit]
     def findAtom(query: String): Future[Seq[Atom]]
+    def getReferences(atomId: AtomId): Future[Seq[Reference]]
     def newId(): AtomId
   }
 
@@ -53,6 +55,13 @@ package object api {
     implicit val decoder: Decoder[Atom] = deriveDecoder
     implicit val encoder: Encoder[Atom] = deriveEncoder
   }
+
+  case class Reference(atomId: AtomId, key: String)
+  object Reference {
+    implicit val encoder: Encoder[Reference] = deriveEncoder
+    implicit val decoder: Decoder[Reference] = deriveDecoder
+  }
+
 }
 
 object FirebaseApi extends api.Api {
@@ -82,14 +91,35 @@ object FirebaseApi extends api.Api {
   val atomCollection                                  = "atoms"
   val atomConverter: FirestoreDataConverter[api.Atom] = circeConverter[api.Atom]
 
+  val referenceCollectionName                                   = "references"
+  val referenceConverter: FirestoreDataConverter[api.Reference] = circeConverter[api.Reference]
+
   def atomDoc(atomId: api.AtomId): DocumentReference[api.Atom] =
     doc(db, atomCollection, atomId.value).withConverter(atomConverter)
+
+  def referenceColl(atomId: api.AtomId): CollectionReference[api.Reference] =
+    collection(db, atomCollection, atomId.value, referenceCollectionName)
+      .withConverter(referenceConverter)
+      .asInstanceOf[CollectionReference[api.Reference]]
 
   override def getAtom(atomId: api.AtomId): Observable[Option[api.Atom]] =
     docObservable(atomDoc(atomId))
 
-  override def setAtom(atom: api.Atom): Future[Unit] =
-    setDoc[api.Atom](atomDoc(atom.id), atom).toFuture
+  override def setAtom(atom: api.Atom): Future[Unit] = async[Future] {
+    // write atom itself
+    await(setDoc(atomDoc(atom.id), atom).toFuture)
+
+    // clear backreferences
+    val referenceDocs = await(getReferenceDocs(atom.id))
+    await(Future.sequence(referenceDocs.map(doc => deleteDoc(doc.ref.asInstanceOf[DocumentReference[Any]]).toFuture)))
+
+    // write target backreferences
+    await(Future.sequence(atom.targets.map { case (key, targetId) =>
+      addDoc(referenceColl(targetId), api.Reference(atom.id, key)).toFuture
+        .map(_ => null) // Future[Unit] collapses to Unit
+    }))
+    ()
+  }
 
   override def findAtom(queryString: String): Future[Seq[api.Atom]] =
     async[Future] {
@@ -104,9 +134,30 @@ object FirebaseApi extends api.Api {
             .withConverter(atomConverter),
         ),
       ).docs
-      val atoms     = snapshots.flatMap(_.data().toOption).toSeq
+      val atoms = snapshots.flatMap(_.data().toOption).toSeq
       atoms
     }
+
+  def getReferenceDocs(atomId: api.AtomId): Future[Vector[QueryDocumentSnapshot[api.Reference]]] = async[Future] {
+    val querySnapshot = await(
+      getDocs(
+        query(
+          collectionGroup(db, referenceCollectionName),
+          where("atomId", WhereFilterOp.EqualssignEqualssign, atomId.value),
+        ).withConverter(referenceConverter),
+      ).toFuture,
+    )
+    querySnapshot.docs.toVector
+  }
+
+  override def getReferences(atomId: api.AtomId): Future[Seq[api.Reference]] = async[Future] {
+    await(getReferenceDocs(atomId)).flatMap { doc =>
+      doc
+        .data()
+        .toOption
+        .map(backref => api.Reference(atomId = api.AtomId(doc.ref.parent.parent.id), key = backref.key))
+    }
+  }
 
   override def newId(): api.AtomId = api.AtomId(util.Random.alphanumeric.take(10).mkString)
 }
