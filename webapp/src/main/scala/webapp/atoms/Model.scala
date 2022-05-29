@@ -116,7 +116,7 @@ object FirebaseApi extends api.Api {
     // write target backreferences
     await(Future.sequence(atom.targets.map { case (key, targetId) =>
       addDoc(referenceColl(targetId), api.Reference(atom.id, key)).toFuture
-        .map(_ => null) // Future[Unit] collapses to Unit
+    // .map(_ => null) // Future[Unit] collapses to Unit
     }))
     ()
   }
