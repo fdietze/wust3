@@ -25,7 +25,7 @@ package object api {
   trait Api {
     def getAtom(atomId: AtomId): Observable[Option[Atom]]
     def setAtom(atom: Atom): Future[Unit]
-    def findAtom(query: String): Future[Seq[Atom]]
+    def findAtoms(query: String): Future[Seq[SearchResult]]
     def getReferences(atomId: AtomId): Future[Seq[Reference]]
     def newId(): AtomId
   }
@@ -37,23 +37,48 @@ package object api {
 
 //  @ConfiguredJsonCodec
 
+  sealed trait Field
+
+  object Field {
+    case class AtomRef(atomId: AtomId) extends Field
+    case class Value(value: String)    extends Field
+
+//    val discriminator                        = "_type"
+//    implicit val genDevConfig: Configuration =
+//      Configuration.default.withDiscriminator(discriminator)
+    implicit val decoder: Decoder[Field] = deriveDecoder
+    implicit val encoder: Encoder[Field] = deriveEncoder
+  }
+
   case class Atom(
     id: AtomId,
     // ab: Int | String,
 //    _type: AtomID,
-    value: Option[String],
-    targets: Map[String, AtomId],
+    targets: Map[String, Field],
     shape: Vector[AtomId],
-  )
+    name: Option[String],
+  ) {
+    override def toString = {
+      name.getOrElse {
+        val t = targets.map {
+          case (key, api.Field.Value(value))    => s"""$key: "$value""""
+          case (key, api.Field.AtomRef(atomId)) => s"""$key: [${atomId.value.take(4)}]"""
+        }
+
+        s"{${id.take(4)} | ${t.mkString(", ")} | ${shape.map(_.take(4)).mkString(", ")}}}"
+      }
+    }
+  }
 
   object Atom {
-//    val discriminator                        = "_type"
-//    implicit val genDevConfig: Configuration =
-//      Configuration.default.withDiscriminator(discriminator)
-    def literal(id: AtomId, value: String) = Atom(id, Some(value), targets = Map.empty, shape = Vector.empty)
-
     implicit val decoder: Decoder[Atom] = deriveDecoder
     implicit val encoder: Encoder[Atom] = deriveEncoder
+  }
+
+  case class SearchResult(atom: Atom, key: String)
+  object SearchResult {
+    implicit val encoder: Encoder[SearchResult] = deriveEncoder
+    implicit val decoder: Decoder[SearchResult] = deriveDecoder
   }
 
   case class Reference(atomId: AtomId, key: String)
@@ -91,6 +116,9 @@ object FirebaseApi extends api.Api {
   val atomCollection                                  = "atoms"
   val atomConverter: FirestoreDataConverter[api.Atom] = circeConverter[api.Atom]
 
+  val searchCollection                                          = "search"
+  val searchConverter: FirestoreDataConverter[api.SearchResult] = circeConverter[api.SearchResult]
+
   val referenceCollectionName                                   = "references"
   val referenceConverter: FirestoreDataConverter[api.Reference] = circeConverter[api.Reference]
 
@@ -110,28 +138,34 @@ object FirebaseApi extends api.Api {
     await(setDoc(atomDoc(atom.id), atom).toFuture)
 
     // clear backreferences
-    val referenceDocs = await(getReferenceDocs(atom.id))
-    await(Future.sequence(referenceDocs.map(doc => deleteDoc(doc.ref.asInstanceOf[DocumentReference[Any]]).toFuture)))
+    // TODO
+    // val referenceDocs = await(getReferenceDocs(atom.id))
+    // await(Future.sequence(referenceDocs.map(doc => deleteDoc(doc.ref.asInstanceOf[DocumentReference[Any]]).toFuture)))
 
-    // write target backreferences
-    await(Future.sequence(atom.targets.map { case (key, targetId) =>
+    // // write target backreferences
+    await(Future.sequence(atom.targets.collect { case (key, api.Field.AtomRef(targetId)) =>
       addDoc(referenceColl(targetId), api.Reference(atom.id, key)).toFuture
     // .map(_ => null) // Future[Unit] collapses to Unit
     }))
     ()
   }
 
-  override def findAtom(queryString: String): Future[Seq[api.Atom]] =
+  override def findAtoms(queryString: String): Future[Seq[api.SearchResult]] =
     async[Future] {
+      // TODO: also search in names
+      val documentIdField = typings.firebase.firebaseMod.firebase.firestore.FieldPath
+        .asInstanceOf[js.Dynamic]
+        .documentId()
+        .asInstanceOf[FieldPath]
       val snapshots = await(
         getDocs(
           query(
-            collection(db, atomCollection),
+            collection(db, searchCollection),
             // primitive prefix search
-            where("value", WhereFilterOp.GreaterthansignEqualssign, queryString),
-            where("value", WhereFilterOp.LessthansignEqualssign, s"${queryString}z"),
+            where(documentIdField, WhereFilterOp.GreaterthansignEqualssign, queryString),
+            where(documentIdField, WhereFilterOp.LessthansignEqualssign, s"${queryString}z"),
           )
-            .withConverter(atomConverter),
+            .withConverter(searchConverter),
         ),
       ).docs
       val atoms = snapshots.flatMap(_.data().toOption).toSeq

@@ -1,7 +1,7 @@
 Global / onChangedBuildSource := IgnoreSourceChanges // not working well with webpack devserver
 
 ThisBuild / version      := "0.1.0-SNAPSHOT"
-ThisBuild / scalaVersion := "3.1.1"
+ThisBuild / scalaVersion := "3.1.2"
 
 val versions = new {
   val funPack  = "0.2.0"

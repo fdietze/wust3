@@ -42,15 +42,15 @@ object App {
   }
 
   def search(): VNode = {
-    val targetSubject = Subject.behavior[Either[String, api.Atom]](Left(""))
+    val targetSubject = Subject.behavior[Either[String, api.SearchResult]](Left(""))
     div(
       managedFunction(() =>
-        targetSubject.collect { case Right(atom) => Page.Atoms.Atom(atom.id) }.subscribe(Page.current),
+        targetSubject.collect { case Right(result) => Page.Atoms.Atom(result.atom.id) }.subscribe(Page.current),
       ),
-      completionInput[api.Atom](
+      completionInput[api.SearchResult](
         resultSubject = targetSubject,
-        search = query => dbApi.findAtom(query),
-        show = x => x.value.getOrElse("[no value]"),
+        search = query => dbApi.findAtoms(query),
+        show = _.toString,
         inputModifiers = VDomModifier(placeholder := "Search", cls := "input input-sm input-bordered"),
       ),
     )
@@ -73,19 +73,15 @@ object App {
         .map(_.map { atom =>
           div(
             atom.shape.map(atomId => showAtomValue(atomId)(cls := "badge")),
-            div(
-              inlineEditable(
-                span(atom.value),
-                atom.value.getOrElse(""),
-                newValue => dbApi.setAtom(atom.copy(value = Some(newValue))),
-              ),
-            ),
-            atom.targets.map { case (key, valueAtomId) =>
+            atom.targets.map { case (key, target) =>
               div(
                 cls := "ml-4",
                 key,
                 " = ",
-                showAtomValue(valueAtomId),
+                target match {
+                  case api.Field.Value(value)    => value
+                  case api.Field.AtomRef(atomId) => showAtomValue(atomId)
+                },
                 removeButton(atom, key),
               )
             }.toSeq,
@@ -103,21 +99,22 @@ object App {
 
   def showAtomValue(atomId: api.AtomId): VNode =
     span(
-      dbApi.getAtom(atomId).map(_.map(_.value)),
+      dbApi.getAtom(atomId).map(_.map(_.toString)),
       onClick.use(Page.Atoms.Atom(atomId)) --> Page.current,
       cursor.pointer,
     )
 
   def newTargetForm(atom: api.Atom): VNode = {
+    // TODO: share  targetform for create and edit atom forms
     val keySubject    = Subject.behavior("")
-    val targetSubject = Subject.behavior[Either[String, api.Atom]](Left(""))
+    val targetSubject = Subject.behavior[Either[String, api.SearchResult]](Left(""))
     div(
       cls := "flex h-8",
       syncedTextInput(keySubject)(cls := "input input-sm input-bordered", placeholder := "key"),
-      completionInput[api.Atom](
+      completionInput[api.SearchResult](
         resultSubject = targetSubject,
-        search = query => dbApi.findAtom(query),
-        show = x => x.value.getOrElse("[no value]"),
+        search = query => dbApi.findAtoms(query),
+        show = atom => atom.toString,
         inputModifiers = VDomModifier(cls := "input input-sm input-bordered", placeholder := "value"),
       ).append(cls := "h-full ml-1"),
       button(
@@ -126,12 +123,11 @@ object App {
         onClick.foreach(async[Future] {
           val key    = keySubject.now()
           val target = targetSubject.now()
-          val targetAtom = target match {
-            case Left(value) => api.Atom.literal(dbApi.newId(), value);
-            case Right(atom) => atom
+          val targetValue: api.Field = target match {
+            case Left(value)   => api.Field.Value(value)
+            case Right(result) => api.Field.AtomRef(result.atom.id)
           }
-          await(dbApi.setAtom(targetAtom))
-          await(dbApi.setAtom(atom.copy(targets = atom.targets + (key -> targetAtom.id))))
+          await(dbApi.setAtom(atom.copy(targets = atom.targets + (key -> targetValue))))
           keySubject.onNext("")
           targetSubject.onNext(Left(""))
         }.onComplete {
@@ -145,21 +141,21 @@ object App {
   def newAtomForm(): VNode = {
     case class TargetPair(key: String, value: Either[String, api.Atom])
     case class AtomForm(
+      name: Option[String],
       shape: Seq[Either[String, api.Atom]],
-      value: Option[String],
       targets: Seq[TargetPair],
     )
 
-    given Form[Either[String, api.Atom]] with {
+    given Form[Either[String, api.SearchResult]] with {
       def default = Left("")
       def apply(
-        subject: Subject[Either[String, api.Atom]],
+        subject: Subject[Either[String, api.SearchResult]],
         formModifiers: FormModifiers,
       ): VNode = {
-        completionInput[api.Atom](
+        completionInput[api.SearchResult](
           resultSubject = subject,
-          search = query => dbApi.findAtom(query),
-          show = x => x.value.getOrElse("[no value]"),
+          search = query => dbApi.findAtoms(query),
+          show = atom => atom.toString,
           inputModifiers = formModifiers.inputModifiers,
         )
       }
@@ -190,24 +186,22 @@ object App {
     def createAtom(formData: AtomForm): Future[api.AtomId] = async[Future] {
       val atomId = dbApi.newId()
 
-      val targets: Map[String, api.AtomId] = await(Future.sequence(formData.targets.map {
-        case TargetPair(key, Right(atom)) =>
-          Future.successful(key -> atom.id)
-        case TargetPair(key, Left(str)) =>
-          async[Future] {
-            val targetId = dbApi.newId()
-            await(dbApi.setAtom(api.Atom.literal(targetId, str)))
-            key -> targetId
-          }
-      })).toMap
+      // val targets: Map[String, api.AtomId] = await(Future.sequence(formData.targets.collect {
+      //   case TargetPair(key, Right(atom)) =>
+      //     Future.successful(key -> atom.id)
+      // })).toMap
+      val targets = formData.targets.map {
+        case TargetPair(key, Left(str))   => key -> api.Field.Value(str)
+        case TargetPair(key, Right(atom)) => key -> api.Field.AtomRef(atom.id)
+      }.toMap
 
       await(
         dbApi.setAtom(
           api.Atom(
             atomId,
-            formData.value,
             targets = targets,
             shape = formData.shape.flatMap(_.map(_.id).toOption).toVector,
+            formData.name,
           ),
         ),
       )
