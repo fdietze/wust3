@@ -28,7 +28,7 @@ package object api {
     def getAtom(atomId: AtomId): Observable[Option[Atom]]
     def setAtom(atom: Atom): Future[Unit]
     def findAtoms(query: String): Future[Seq[SearchResult]]
-    def getReferences(atomId: AtomId): Future[Seq[Reference]]
+    def getUsages(targetAtomId: AtomId): Future[Seq[Reference]]
     def newId(): AtomId
   }
 
@@ -83,7 +83,7 @@ package object api {
     implicit val decoder: Decoder[SearchResult] = deriveDecoder
   }
 
-  case class Reference(atomId: AtomId, key: String)
+  case class Reference(atom: Atom, key: String)
   object Reference {
     implicit val encoder: Encoder[Reference] = deriveEncoder
     implicit val decoder: Decoder[Reference] = deriveDecoder
@@ -121,7 +121,7 @@ object FirebaseApi extends api.Api {
   val searchCollection                                          = "search"
   val searchConverter: FirestoreDataConverter[api.SearchResult] = circeConverter[api.SearchResult]
 
-  val referenceCollectionName                                   = "references"
+  val usageCollectionName                                       = "usages"
   val referenceConverter: FirestoreDataConverter[api.Reference] = circeConverter[api.Reference]
 
   def atomDoc(atomId: api.AtomId): DocumentReference[api.Atom] =
@@ -130,8 +130,8 @@ object FirebaseApi extends api.Api {
   def searchDoc(value: String, atomId: api.AtomId): DocumentReference[api.SearchResult] =
     doc(db, searchCollection, s"${value}_${atomId.value}").withConverter(searchConverter)
 
-  def referenceColl(atomId: api.AtomId): CollectionReference[api.Reference] =
-    collection(db, atomCollection, atomId.value, referenceCollectionName)
+  def usageCollection(atomId: api.AtomId): CollectionReference[api.Reference] =
+    collection(db, atomCollection, atomId.value, usageCollectionName)
       .withConverter(referenceConverter)
       .asInstanceOf[CollectionReference[api.Reference]]
 
@@ -142,15 +142,18 @@ object FirebaseApi extends api.Api {
     // write atom itself
     await(setDoc(atomDoc(atom.id), atom).toFuture)
 
-    // clear relational backreferences
-    // TODO
-    // val referenceDocs = await(getReferenceDocs(atom.id))
-    // await(Future.sequence(referenceDocs.map(doc => deleteDoc(doc.ref.asInstanceOf[DocumentReference[Any]]).toFuture)))
+    // clear usage index for this atom
+    val usageDocs = await(getReverseUsageDocs(atom.id))
+    await(Future.sequence(usageDocs.map(doc => deleteDoc(doc.ref.asInstanceOf[DocumentReference[Any]]).toFuture)))
 
-    // // write target relational backreferences and search index
+    // clear search index for this atom
+    val searchDocs = await(getSearchIndexDocs(atom.id))
+    await(Future.sequence(searchDocs.map(doc => deleteDoc(doc.ref.asInstanceOf[DocumentReference[Any]]).toFuture)))
+
+    // // write usage backreferences and search index
     Future.sequence(atom.targets.collect {
       case (key, api.Field.AtomRef(targetId)) =>
-        addDoc(referenceColl(targetId), api.Reference(atom.id, key)).toFuture
+        addDoc(usageCollection(targetId), api.Reference(atom, key)).toFuture
       case (key, api.Field.Value(value)) =>
         setDoc(searchDoc(value, atom.id), api.SearchResult(atom, key)).toFuture
     })
@@ -175,24 +178,39 @@ object FirebaseApi extends api.Api {
       atoms
     }
 
-  def getReferenceDocs(atomId: api.AtomId): Future[Vector[QueryDocumentSnapshot[api.Reference]]] = async[Future] {
+  def getSearchIndexDocs(atomId: api.AtomId): Future[Vector[QueryDocumentSnapshot[api.SearchResult]]] = async[Future] {
     val querySnapshot = await(
       getDocs(
         query(
-          collectionGroup(db, referenceCollectionName),
-          where("atomId", WhereFilterOp.EqualssignEqualssign, atomId.value),
-        ).withConverter(referenceConverter),
+          collectionGroup(db, searchCollection),
+          where("atom.id", WhereFilterOp.EqualssignEqualssign, atomId.value),
+        ).withConverter(searchConverter),
       ).toFuture,
     )
     querySnapshot.docs.toVector
   }
 
-  override def getReferences(atomId: api.AtomId): Future[Seq[api.Reference]] = async[Future] {
-    await(getReferenceDocs(atomId)).flatMap { doc =>
-      doc
-        .data()
-        .toOption
-        .map(backref => api.Reference(atomId = api.AtomId(doc.ref.parent.parent.id), key = backref.key))
+  def getReverseUsageDocs(parentAtomId: api.AtomId): Future[Vector[QueryDocumentSnapshot[api.Reference]]] =
+    async[Future] {
+      val querySnapshot = await(
+        getDocs(
+          query(
+            collectionGroup(db, usageCollectionName),
+            where("atom.id", WhereFilterOp.EqualssignEqualssign, parentAtomId.value),
+          ).withConverter(referenceConverter),
+        ).toFuture,
+      )
+      querySnapshot.docs.toVector
+    }
+
+  def getUsageDocs(targetAtomId: api.AtomId): Future[Vector[QueryDocumentSnapshot[api.Reference]]] = async[Future] {
+    val querySnapshot = await(getDocs(usageCollection(targetAtomId)).toFuture)
+    querySnapshot.docs.toVector
+  }
+
+  override def getUsages(targetAtomId: api.AtomId): Future[Seq[api.Reference]] = async[Future] {
+    await(getUsageDocs(targetAtomId)).flatMap { doc =>
+      doc.data().toOption
     }
   }
 

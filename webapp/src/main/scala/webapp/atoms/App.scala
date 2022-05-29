@@ -89,10 +89,10 @@ object App {
             newTargetForm(atom).apply(cls := "ml-4"),
           )
         }),
-      "References:",
-      dbApi.getReferences(atomId).map {
+      "Usages:",
+      dbApi.getUsages(atomId).map {
         _.map { reference =>
-          div(reference.key, ": ", showAtomValue(reference.atomId))
+          div(reference.key, ": ", showAtomValue(reference.atom))
         }
       },
     )
@@ -102,6 +102,13 @@ object App {
     span(
       dbApi.getAtom(atomId).map(_.map(_.toString)),
       onClick.use(Page.Atoms.Atom(atomId)) --> Page.current,
+      cursor.pointer,
+    )
+
+  def showAtomValue(atom: api.Atom): VNode =
+    span(
+      atom.toString,
+      onClick.use(Page.Atoms.Atom(atom.id)) --> Page.current,
       cursor.pointer,
     )
 
