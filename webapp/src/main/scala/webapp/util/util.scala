@@ -6,6 +6,8 @@ import cats.effect.SyncIO
 import colibri.{BehaviorSubject, Observable, Subject}
 import outwatch._
 import outwatch.dsl._
+import scala.concurrent.Promise
+import scala.concurrent.ExecutionContext
 
 package object util {
   def syncedTextInput(subject: Subject[String]): VNode =
@@ -106,6 +108,14 @@ package object util {
       i            += 1
     }
     b.result()
+  }
+
+  def observableFirstFuture[T](obs: Observable[T])(implicit ec: ExecutionContext): Future[T] = {
+    val promise    = Promise[T]
+    val future     = promise.future
+    val cancelable = obs.take(1).recoverToEither.foreach(value => promise.complete(value.toTry))
+    future.onComplete(_ => cancelable.cancel())
+    future
   }
 
 }

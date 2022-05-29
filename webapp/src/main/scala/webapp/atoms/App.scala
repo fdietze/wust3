@@ -41,6 +41,12 @@ object App {
     )
   }
 
+  val formModifiers = FormModifiers(
+    inputModifiers = VDomModifier(cls := "input input-sm input-bordered"),
+    checkboxModifiers = VDomModifier(cls := "checkbox checkbox-sm"),
+    buttonModifiers = VDomModifier(cls := "btn btn-sm"),
+  )
+
   def search(): VNode = {
     val targetSubject = Subject.behavior[Either[String, api.SearchResult]](Left(""))
     div(
@@ -57,38 +63,42 @@ object App {
   }
 
   def focusAtom(atomId: api.AtomId): VNode = {
-    def removeButton(atom: api.Atom, key: String) = {
-      button(
-        "remove",
-        cls := "btn btn-xs btn-ghost",
-        onClick.foreach {
-          dbApi.setAtom(atom.copy(targets = atom.targets - key))
-          ()
-        },
-      )
-    }
-
     div(
       dbApi
         .getAtom(atomId)
         .map(_.map { atom =>
-          div(
-            atom.shape.map(atomId => showAtomValue(atomId)(cls := "badge")),
-            atom.targets.map { case (key, target) =>
-              div(
-                cls := "ml-4",
-                key,
-                " = ",
-                target match {
-                  case api.Field.Value(value)    => value
-                  case api.Field.AtomRef(atomId) => showAtomValue(atomId)
-                },
-                removeButton(atom, key),
-              )
-            }.toSeq,
-            newTargetForm(atom).apply(cls := "ml-4"),
-          )
+          ResolvedAtom.from(atom).map { resolvedAtom =>
+            val isEditing = Subject.behavior(false)
+            isEditing.map[VDomModifier] {
+              case true =>
+                import AtomForm.given
+                val subject = Subject.behavior[AtomForm](AtomForm.from(resolvedAtom))
+                div(
+                  Form[AtomForm](subject, formModifiers = formModifiers),
+                  button(
+                    "save",
+                    cls := "btn btn-xs",
+                    onClick(subject).foreach { formValue =>
+                      async[Future] {
+                        await(saveAtom(formValue, atom.id))
+                        isEditing.onNext(false)
+                      }
+                    },
+                  ),
+                )
+              case false =>
+                div(
+                  showResolvedAtom(resolvedAtom),
+                  button(
+                    "edit",
+                    cls := "btn btn-xs",
+                    onClick.use(true) --> isEditing,
+                  ),
+                )
+            }
+          }
         }),
+      hr(),
       "Usages:",
       dbApi.getUsages(atomId).map {
         _.map { reference =>
@@ -98,76 +108,57 @@ object App {
     )
   }
 
+  def onClickFocusAtom(atomId: api.AtomId) = VDomModifier(
+    onClick.use(Page.Atoms.Atom(atomId)) --> Page.current,
+    cursor.pointer,
+  )
+
   def showAtomValue(atomId: api.AtomId): VNode =
     span(
       dbApi.getAtom(atomId).map(_.map(_.toString)),
-      onClick.use(Page.Atoms.Atom(atomId)) --> Page.current,
-      cursor.pointer,
+      onClickFocusAtom(atomId),
     )
 
   def showAtomValue(atom: api.Atom): VNode =
     span(
       atom.toString,
-      onClick.use(Page.Atoms.Atom(atom.id)) --> Page.current,
-      cursor.pointer,
+      onClickFocusAtom(atom.id),
     )
 
-  def newTargetForm(atom: api.Atom): VNode = {
-    // TODO: share  targetform for create and edit atom forms
-    val keySubject    = Subject.behavior("")
-    val targetSubject = Subject.behavior[Either[String, api.SearchResult]](Left(""))
+  def showResolvedAtom(atom: ResolvedAtom): VNode =
     div(
-      cls := "flex h-8",
-      syncedTextInput(keySubject)(cls := "input input-sm input-bordered", placeholder := "key"),
-      completionInput[api.SearchResult](
-        resultSubject = targetSubject,
-        search = query => dbApi.findAtoms(query),
-        show = _.atom.toString,
-        inputModifiers = VDomModifier(cls := "input input-sm input-bordered", placeholder := "value"),
-      ).append(cls := "h-full ml-1"),
-      button(
-        cls := "btn btn-sm btn-ghost",
-        "add",
-        onClick.foreach(async[Future] {
-          val key    = keySubject.now()
-          val target = targetSubject.now()
-          val targetValue: api.Field = target match {
-            case Left(value)   => api.Field.Value(value)
-            case Right(result) => api.Field.AtomRef(result.atom.id)
-          }
-          await(dbApi.setAtom(atom.copy(targets = atom.targets + (key -> targetValue))))
-          keySubject.onNext("")
-          targetSubject.onNext(Left(""))
-        }.onComplete {
-          case Success(_) => println("created target")
-          case Failure(e) => e.printStackTrace()
-        }),
+      div("id: ", atom.id.value, cls := "text-xs text-gray-500"),
+      div(atom.name, cls             := "text-xl"),
+      VDomModifier.ifTrue(atom.shape.nonEmpty)(
+        div(
+          "shape: ",
+          atom.shape.map(atom => div(atom.toString, cls := "badge", onClickFocusAtom(atom.id))),
+        ),
       ),
+      atom.targets.map { case key -> field =>
+        div(
+          cls := "ml-8 flex items-center",
+          div(key, ":", cls := "mr-4"),
+          field match {
+            case ResolvedField.Value(value) => div(value, cls := "font-mono")
+            case ResolvedField.Atom(atom)   => div(showAtomValue(atom), cls := "underline")
+          },
+        )
+      }.toVector,
     )
+
+  def createAtom(formData: AtomForm): Future[api.AtomId] = async[Future] {
+    val atomId = dbApi.newId()
+    await(dbApi.setAtom(formData.toAtom(atomId)))
+    atomId
+  }
+
+  def saveAtom(formData: AtomForm, atomId: api.AtomId): Future[Unit] = {
+    dbApi.setAtom(formData.toAtom(atomId))
   }
 
   def newAtomForm(): VNode = {
-    case class TargetPair(key: String, value: Either[String, api.SearchResult])
-    case class AtomForm(
-      name: Option[String],
-      shape: Seq[Either[String, api.SearchResult]],
-      targets: Seq[TargetPair],
-    )
-
-    given Form[Either[String, api.SearchResult]] with {
-      def default = Left("")
-      def apply(
-        subject: Subject[Either[String, api.SearchResult]],
-        formModifiers: FormModifiers,
-      ): VNode = {
-        completionInput[api.SearchResult](
-          resultSubject = subject,
-          search = query => dbApi.findAtoms(query),
-          show = _.atom.toString,
-          inputModifiers = formModifiers.inputModifiers,
-        )
-      }
-    }
+    import AtomForm.given
 
     val subject = Form.subject[AtomForm]
     subject
@@ -183,7 +174,8 @@ object App {
           .now()
           .copy(targets =
             (subject.now().targets ++
-              shapeAtom.targets.map { case (key -> value) => TargetPair(key, Left("")) }.toSeq).distinctBy(_.key),
+              shapeAtom.targets.map { case (key -> value) => AtomForm.TargetPair(key, Left("")) }.toSeq)
+              .distinctBy(_.key),
           ),
       )
 
@@ -192,36 +184,10 @@ object App {
       }.foreach(_.flatten.foreach(addInheritedShapeFields))
     }
 
-    def createAtom(formData: AtomForm): Future[api.AtomId] = async[Future] {
-      val atomId = dbApi.newId()
-
-      val targets = formData.targets.map {
-        case TargetPair(key, Left(str))           => key -> api.Field.Value(str)
-        case TargetPair(key, Right(searchResult)) => key -> api.Field.AtomRef(searchResult.atom.id)
-      }.toMap
-
-      await(
-        dbApi.setAtom(
-          api.Atom(
-            atomId,
-            targets = targets,
-            shape = formData.shape.flatMap(_.map(_.atom.id).toOption).toVector,
-            formData.name,
-          ),
-        ),
-      )
-
-      atomId
-    }
-
     div(
       Form[AtomForm](
         subject,
-        formModifiers = FormModifiers(
-          inputModifiers = VDomModifier(cls := "input input-sm input-bordered"),
-          checkboxModifiers = VDomModifier(cls := "checkbox checkbox-sm"),
-          buttonModifiers = VDomModifier(cls := "btn btn-sm"),
-        ),
+        formModifiers = formModifiers,
       ),
       button(
         "Create",
