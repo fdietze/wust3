@@ -14,6 +14,8 @@ import cps.monads.{given, *} // support for built-in monads (i.e. Future)
 
 import scala.concurrent.Future
 import scala.scalajs.js
+import scala.scalajs.js.annotation._
+import typings.node.global.console
 
 package object api {
   opaque type AtomId = String
@@ -65,7 +67,7 @@ package object api {
           case (key, api.Field.AtomRef(atomId)) => s"""$key: [${atomId.value.take(4)}]"""
         }
 
-        s"{${id.take(4)} | ${t.mkString(", ")} | ${shape.map(_.take(4)).mkString(", ")}}}"
+        s"{ ${t.mkString(", ")} | ${id.take(4)} ${if (shape.nonEmpty) "<: " else ""}${shape.map(_.take(4)).mkString(", ")}}}"
       }
     }
   }
@@ -125,6 +127,9 @@ object FirebaseApi extends api.Api {
   def atomDoc(atomId: api.AtomId): DocumentReference[api.Atom] =
     doc(db, atomCollection, atomId.value).withConverter(atomConverter)
 
+  def searchDoc(value: String): DocumentReference[api.SearchResult] =
+    doc(db, searchCollection, value).withConverter(searchConverter)
+
   def referenceColl(atomId: api.AtomId): CollectionReference[api.Reference] =
     collection(db, atomCollection, atomId.value, referenceCollectionName)
       .withConverter(referenceConverter)
@@ -137,33 +142,32 @@ object FirebaseApi extends api.Api {
     // write atom itself
     await(setDoc(atomDoc(atom.id), atom).toFuture)
 
-    // clear backreferences
+    // clear relational backreferences
     // TODO
     // val referenceDocs = await(getReferenceDocs(atom.id))
     // await(Future.sequence(referenceDocs.map(doc => deleteDoc(doc.ref.asInstanceOf[DocumentReference[Any]]).toFuture)))
 
-    // // write target backreferences
-    await(Future.sequence(atom.targets.collect { case (key, api.Field.AtomRef(targetId)) =>
-      addDoc(referenceColl(targetId), api.Reference(atom.id, key)).toFuture
-    // .map(_ => null) // Future[Unit] collapses to Unit
-    }))
+    // // write target relational backreferences and search index
+    Future.sequence(atom.targets.collect {
+      case (key, api.Field.AtomRef(targetId)) =>
+        // these futures run in parralel, fire and forget
+        addDoc(referenceColl(targetId), api.Reference(atom.id, key)).toFuture
+      case (key, api.Field.Value(value)) =>
+        setDoc(searchDoc(value), api.SearchResult(atom, key)).toFuture
+    })
     ()
   }
 
   override def findAtoms(queryString: String): Future[Seq[api.SearchResult]] =
     async[Future] {
       // TODO: also search in names
-      val documentIdField = typings.firebase.firebaseMod.firebase.firestore.FieldPath
-        .asInstanceOf[js.Dynamic]
-        .documentId()
-        .asInstanceOf[FieldPath]
       val snapshots = await(
         getDocs(
           query(
             collection(db, searchCollection),
             // primitive prefix search
-            where(documentIdField, WhereFilterOp.GreaterthansignEqualssign, queryString),
-            where(documentIdField, WhereFilterOp.LessthansignEqualssign, s"${queryString}z"),
+            where(documentId(), WhereFilterOp.GreaterthansignEqualssign, queryString),
+            where(documentId(), WhereFilterOp.LessthansignEqualssign, s"${queryString}z"),
           )
             .withConverter(searchConverter),
         ),

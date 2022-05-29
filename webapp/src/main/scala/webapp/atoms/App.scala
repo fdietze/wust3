@@ -50,7 +50,7 @@ object App {
       completionInput[api.SearchResult](
         resultSubject = targetSubject,
         search = query => dbApi.findAtoms(query),
-        show = _.toString,
+        show = _.atom.toString,
         inputModifiers = VDomModifier(placeholder := "Search", cls := "input input-sm input-bordered"),
       ),
     )
@@ -63,6 +63,7 @@ object App {
         cls := "btn btn-xs btn-ghost",
         onClick.foreach {
           dbApi.setAtom(atom.copy(targets = atom.targets - key))
+          ()
         },
       )
     }
@@ -139,10 +140,10 @@ object App {
   }
 
   def newAtomForm(): VNode = {
-    case class TargetPair(key: String, value: Either[String, api.Atom])
+    case class TargetPair(key: String, value: Either[String, api.SearchResult])
     case class AtomForm(
       name: Option[String],
-      shape: Seq[Either[String, api.Atom]],
+      shape: Seq[Either[String, api.SearchResult]],
       targets: Seq[TargetPair],
     )
 
@@ -163,12 +164,13 @@ object App {
 
     val subject = Form.subject[AtomForm]
     subject
-      .map(_.shape.collect { case Right(shapeAtom) => shapeAtom })
+      .map(_.shape.collect { case Right(searchResult) => searchResult })
       .distinctOnEquals
-      .delayMillis(100)                     // TODO: why is this needed?
-      .foreach { _.map { addShapeFields } } // TODO: handle cancelable
+      .delayMillis(100)                                                     // TODO: why is this needed?
+      .foreach { _.map { result => addInheritedShapeFields(result.atom) } } // TODO: handle cancelable
 
-    def addShapeFields(shapeAtom: api.Atom): colibri.Cancelable = {
+    // TODO: is this called too often?
+    def addInheritedShapeFields(shapeAtom: api.Atom): colibri.Cancelable = {
       subject.onNext(
         subject
           .now()
@@ -180,19 +182,15 @@ object App {
 
       shapeAtom.shape.traverse { atomId =>
         dbApi.getAtom(atomId)
-      }.foreach(_.flatten.foreach(addShapeFields))
+      }.foreach(_.flatten.foreach(addInheritedShapeFields))
     }
 
     def createAtom(formData: AtomForm): Future[api.AtomId] = async[Future] {
       val atomId = dbApi.newId()
 
-      // val targets: Map[String, api.AtomId] = await(Future.sequence(formData.targets.collect {
-      //   case TargetPair(key, Right(atom)) =>
-      //     Future.successful(key -> atom.id)
-      // })).toMap
       val targets = formData.targets.map {
-        case TargetPair(key, Left(str))   => key -> api.Field.Value(str)
-        case TargetPair(key, Right(atom)) => key -> api.Field.AtomRef(atom.id)
+        case TargetPair(key, Left(str))           => key -> api.Field.Value(str)
+        case TargetPair(key, Right(searchResult)) => key -> api.Field.AtomRef(searchResult.atom.id)
       }.toMap
 
       await(
@@ -200,7 +198,7 @@ object App {
           api.Atom(
             atomId,
             targets = targets,
-            shape = formData.shape.flatMap(_.map(_.id).toOption).toVector,
+            shape = formData.shape.flatMap(_.map(_.atom.id).toOption).toVector,
             formData.name,
           ),
         ),
