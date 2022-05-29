@@ -115,7 +115,7 @@ object App {
       completionInput[api.SearchResult](
         resultSubject = targetSubject,
         search = query => dbApi.findAtoms(query),
-        show = atom => atom.toString,
+        show = _.atom.toString,
         inputModifiers = VDomModifier(cls := "input input-sm input-bordered", placeholder := "value"),
       ).append(cls := "h-full ml-1"),
       button(
@@ -156,7 +156,7 @@ object App {
         completionInput[api.SearchResult](
           resultSubject = subject,
           search = query => dbApi.findAtoms(query),
-          show = atom => atom.toString,
+          show = _.atom.toString,
           inputModifiers = formModifiers.inputModifiers,
         )
       }

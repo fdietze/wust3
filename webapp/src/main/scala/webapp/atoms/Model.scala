@@ -67,7 +67,7 @@ package object api {
           case (key, api.Field.AtomRef(atomId)) => s"""$key: [${atomId.value.take(4)}]"""
         }
 
-        s"{ ${t.mkString(", ")} | ${id.take(4)} ${if (shape.nonEmpty) "<: " else ""}${shape.map(_.take(4)).mkString(", ")}}}"
+        s"{${t.mkString(", ")}}:${id.take(4)} ${if (shape.nonEmpty) ":" else ""}${shape.map(_.take(4)).mkString(":")}"
       }
     }
   }
@@ -127,8 +127,8 @@ object FirebaseApi extends api.Api {
   def atomDoc(atomId: api.AtomId): DocumentReference[api.Atom] =
     doc(db, atomCollection, atomId.value).withConverter(atomConverter)
 
-  def searchDoc(value: String): DocumentReference[api.SearchResult] =
-    doc(db, searchCollection, value).withConverter(searchConverter)
+  def searchDoc(value: String, atomId: api.AtomId): DocumentReference[api.SearchResult] =
+    doc(db, searchCollection, s"${value}_${atomId.value}").withConverter(searchConverter)
 
   def referenceColl(atomId: api.AtomId): CollectionReference[api.Reference] =
     collection(db, atomCollection, atomId.value, referenceCollectionName)
@@ -150,10 +150,9 @@ object FirebaseApi extends api.Api {
     // // write target relational backreferences and search index
     Future.sequence(atom.targets.collect {
       case (key, api.Field.AtomRef(targetId)) =>
-        // these futures run in parralel, fire and forget
         addDoc(referenceColl(targetId), api.Reference(atom.id, key)).toFuture
       case (key, api.Field.Value(value)) =>
-        setDoc(searchDoc(value), api.SearchResult(atom, key)).toFuture
+        setDoc(searchDoc(value, atom.id), api.SearchResult(atom, key)).toFuture
     })
     ()
   }

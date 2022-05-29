@@ -47,10 +47,14 @@ package object util {
     )(
       _.collect { case Left(str) => str }.prepend(""),
     )
+
+    var lastInput = ""
+
     val inputSize = cls := "w-40"
 
     div(
       cls := "relative inline-block",
+      managedFunction(() => querySubject.foreach(lastInput = _)),
       resultSubject.map {
         case Left(_) =>
           VDomModifier(
@@ -68,6 +72,7 @@ package object util {
                       div(
                         show(result),
                         onClick.stopPropagation.use(Right(result)) --> resultSubject,
+                        cls := "whitespace-nowrap overflow-x-hidden text-ellipsis",
                         cls := "hover:bg-blue-200 hover:dark:bg-blue-800 p-2 cursor-pointer",
                       ),
                     ),
@@ -79,11 +84,14 @@ package object util {
           )
         case Right(selected) =>
           div(
-            span(show(selected)),
+            span(
+              show(selected),
+              cls := "whitespace-nowrap overflow-x-hidden text-ellipsis",
+            ),
             cls := "h-full px-2 bg-blue-100 dark:bg-blue-900 dark:text-white cursor-pointer rounded",
             cls := "flex items-center",
             inputSize,
-            onClick.stopPropagation.use(Left(show(selected))) --> resultSubject,
+            onClick.stopPropagation.use(Left(lastInput)) --> resultSubject,
           )
       },
     )
