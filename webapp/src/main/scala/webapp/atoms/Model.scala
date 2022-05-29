@@ -27,8 +27,8 @@ package object api {
   trait Api {
     def getAtom(atomId: AtomId): Observable[Option[Atom]]
     def setAtom(atom: Atom): Future[Unit]
-    def findAtoms(query: String): Future[Seq[SearchResult]]
-    def getUsages(targetAtomId: AtomId): Future[Seq[Reference]]
+    def findAtoms(query: String): Future[Vector[SearchResult]]
+    def getUsages(targetAtomId: AtomId): Future[Vector[Reference]]
     def newId(): AtomId
   }
 
@@ -77,7 +77,7 @@ package object api {
     implicit val encoder: Encoder[Atom] = deriveEncoder
   }
 
-  case class SearchResult(atom: Atom, key: String)
+  case class SearchResult(atom: Atom, key: Option[String])
   object SearchResult {
     implicit val encoder: Encoder[SearchResult] = deriveEncoder
     implicit val decoder: Decoder[SearchResult] = deriveDecoder
@@ -155,15 +155,25 @@ object FirebaseApi extends api.Api {
       case (key, api.Field.AtomRef(targetId)) =>
         addDoc(usageCollection(targetId), api.Reference(atom, key)).toFuture
       case (key, api.Field.Value(value)) =>
-        setDoc(searchDoc(value, atom.id), api.SearchResult(atom, key)).toFuture
+        setDoc(searchDoc(value, atom.id), api.SearchResult(atom, Some(key))).toFuture
     })
     ()
   }
 
-  override def findAtoms(queryString: String): Future[Seq[api.SearchResult]] =
+  override def findAtoms(queryString: String): Future[Vector[api.SearchResult]] =
     async[Future] {
-      // TODO: also search in names
-      val snapshots = await(
+      val nameSearchAtoms: Vector[api.SearchResult] = await(
+        getDocs(
+          query(
+            collection(db, atomCollection),
+            // primitive prefix search
+            where("name", WhereFilterOp.GreaterthansignEqualssign, queryString),
+            where("name", WhereFilterOp.LessthansignEqualssign, s"${queryString}z"),
+          ).withConverter(atomConverter),
+        ).toFuture,
+      ).docs.flatMap(_.data().toOption).map(atom => api.SearchResult(atom, None)).toVector
+
+      val fieldSearchAtoms: Vector[api.SearchResult] = await(
         getDocs(
           query(
             collection(db, searchCollection),
@@ -172,10 +182,10 @@ object FirebaseApi extends api.Api {
             where(documentId(), WhereFilterOp.LessthansignEqualssign, s"${queryString}z"),
           )
             .withConverter(searchConverter),
-        ),
-      ).docs
-      val atoms = snapshots.flatMap(_.data().toOption).toSeq
-      atoms
+        ).toFuture,
+      ).docs.flatMap(_.data().toOption).toVector
+
+      nameSearchAtoms ++ fieldSearchAtoms
     }
 
   def getSearchIndexDocs(atomId: api.AtomId): Future[Vector[QueryDocumentSnapshot[api.SearchResult]]] = async[Future] {
@@ -208,7 +218,7 @@ object FirebaseApi extends api.Api {
     querySnapshot.docs.toVector
   }
 
-  override def getUsages(targetAtomId: api.AtomId): Future[Seq[api.Reference]] = async[Future] {
+  override def getUsages(targetAtomId: api.AtomId): Future[Vector[api.Reference]] = async[Future] {
     await(getUsageDocs(targetAtomId)).flatMap { doc =>
       doc.data().toOption
     }
