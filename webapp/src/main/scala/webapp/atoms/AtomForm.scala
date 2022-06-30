@@ -6,7 +6,7 @@ import outwatch.dsl._
 import formidable.{given, *}
 import webapp.util._
 import scala.concurrent.Future
-import colibri.Observable
+import colibri.reactive._
 import cats.syntax.all._
 import scala.concurrent.Promise
 import scala.util.Success
@@ -62,11 +62,11 @@ object AtomForm {
   given Form[Either[String, api.SearchResult]] with {
     def default = Left("")
     def apply(
-      subject: Subject[Either[String, api.SearchResult]],
+      state: Var[Either[String, api.SearchResult]],
       formModifiers: FormModifiers,
-    ): VNode = {
+    )(using Owner): VNode = {
       completionInput[api.SearchResult](
-        resultSubject = subject,
+        resultSubject = Subject.from(state.observer, state.observable),
         search = query => dbApi.findAtoms(query),
         show = _.atom.toString,
         inputModifiers = formModifiers.inputModifiers,
@@ -85,8 +85,8 @@ object AtomForm {
   //     div(
   //       cls := "flex",
   //       subject.map(_.toString),
-  //       managedFunction(() => subject.distinctOnEquals.subscribe(behaviorSubject)),
-  //       managedFunction(() => behaviorSubject.drop(1).distinctOnEquals.subscribe(subject)),
+  //       managedFunction(() => subject.distinctOnEquals.unsafeSubscribe(behaviorSubject)),
+  //       managedFunction(() => behaviorSubject.drop(1).distinctOnEquals.unsafeSubscribe(subject)),
   //       syncedTextInput(keySubject)(formModifiers.inputModifiers),
   //     )
   //   }

@@ -1,6 +1,6 @@
 package colibri
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import io.circe.parser.decode
 import io.circe.{Decoder, Encoder}
 import io.circe.syntax._
@@ -16,9 +16,9 @@ package object firebase {
 
   def docObservable[T](document: DocumentReference[T]): Observable[Option[T]] =
     Observable.create { observer =>
-      val unsubscribe =
-        onSnapshot(document, (snapshot: DocumentSnapshot[T]) => observer.onNext(snapshot.data().toOption))
-      Cancelable(unsubscribe)
+      val ununsafeSubscribe =
+        onSnapshot(document, (snapshot: DocumentSnapshot[T]) => observer.unsafeOnNext(snapshot.data().toOption))
+      Cancelable(ununsafeSubscribe)
     }
 
   def docObserver[T](document: DocumentReference[T]): Observer[Option[T]] =
@@ -40,11 +40,12 @@ package object firebase {
 
   def queryObservable[T](query: Query_[T]): Observable[js.Array[QueryDocumentSnapshot[T]]] =
     Observable.create { observer =>
-      val unsubscribe = onSnapshot(query, (querySnapshot: QuerySnapshot[T]) => observer.onNext(querySnapshot.docs))
-      Cancelable(unsubscribe)
+      val ununsafeSubscribe =
+        onSnapshot(query, (querySnapshot: QuerySnapshot[T]) => observer.unsafeOnNext(querySnapshot.docs))
+      Cancelable(ununsafeSubscribe)
     }
 
-  def getDocsIO[T](query: Query_[T])(implicit cs: ContextShift[IO]): IO[js.Array[QueryDocumentSnapshot[T]]] =
+  def getDocsIO[T](query: Query_[T]): IO[js.Array[QueryDocumentSnapshot[T]]] =
     IO.fromFuture(IO(getDocs(query).toFuture)).map(_.docs)
 
   def circeConverter[T: Encoder: Decoder]: FirestoreDataConverter[T] = js.Dynamic

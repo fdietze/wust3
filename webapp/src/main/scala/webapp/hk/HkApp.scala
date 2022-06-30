@@ -90,16 +90,16 @@ object App {
                 button(
                   "remove",
                   onClick.stopPropagation.foreach { _ =>
-                    castings.onNext(castings.now().patch(i, Nil, 1))
+                    castings.unsafeOnNext(castings.now().patch(i, Nil, 1))
                   },
                 ),
-              ),
+              )
             },
           ),
         button(
           "add",
           onClick.foreach { _ =>
-            castings.onNext(castings.now() :+ (Left(""), Left("")))
+            castings.unsafeOnNext(castings.now() :+ (Left(""), Left("")))
           },
         ),
       ),
@@ -151,7 +151,7 @@ object App {
       "[a ",
       span(frame.type_id.toString),
       "; ",
-      intersperse[VDomModifier](
+      intersperse[VModifier](
         frame.targets.toList
           .sortBy(_._1.id)
           .map { case (k, v) =>

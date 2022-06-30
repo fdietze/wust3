@@ -1,6 +1,6 @@
 package webapp.atoms
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import colibri.firebase.*
 import colibri.{Observable, Subject}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -64,7 +64,7 @@ package object api {
       name.getOrElse {
         val t = targets.map {
           case (key, api.Field.Value(value))    => s"""$key: "$value""""
-          case (key, api.Field.AtomRef(atomId)) => s"""$key: [${atomId.value.take(4)}]"""
+          case (key, api.Field.AtomRef(atomId)) => s"""$key: [${atomId.value.take(4).mkString}]"""
         }
 
         s"{${t.mkString(", ")}}:${id.take(4)} ${if (shape.nonEmpty) ":" else ""}${shape.map(_.take(4)).mkString(":")}"
@@ -97,7 +97,6 @@ object FirebaseApi extends api.Api {
   import typings.firebaseFirestore.mod.*
 
   implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
-  implicit val contextShift: ContextShift[IO]        = IO.contextShift(ec)
 
   initializeApp(
     FirebaseOptions()

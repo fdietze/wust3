@@ -126,7 +126,6 @@ package object api {
       case f: Frame if f.isFormal => Some(CastingValue.F(f.id))
       case f: Frame               => Some(CastingValue.T(f.id))
       case l: Literal             => Some(CastingValue.L(l))
-      case _                      => None
     }
 
   }

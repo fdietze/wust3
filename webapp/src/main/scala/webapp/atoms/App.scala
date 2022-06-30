@@ -15,6 +15,7 @@ import scala.concurrent.Future
 import formidable.{given, *}
 import scala.util.Success
 import scala.util.Failure
+import colibri.reactive._
 
 object App {
   implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
@@ -34,7 +35,7 @@ object App {
         search(),
       ),
       hr(),
-      showCreateAtomForm.map[VDomModifier] {
+      showCreateAtomForm.map[VModifier] {
         case true  => newAtomForm()
         case false => focus.map(focusAtom)
       },
@@ -42,46 +43,46 @@ object App {
   }
 
   val formModifiers = FormModifiers(
-    inputModifiers = VDomModifier(cls := "input input-sm input-bordered"),
-    checkboxModifiers = VDomModifier(cls := "checkbox checkbox-sm"),
-    buttonModifiers = VDomModifier(cls := "btn btn-sm"),
+    inputModifiers = VModifier(cls := "input input-sm input-bordered"),
+    checkboxModifiers = VModifier(cls := "checkbox checkbox-sm"),
+    buttonModifiers = VModifier(cls := "btn btn-sm"),
   )
 
   def search(): VNode = {
     val targetSubject = Subject.behavior[Either[String, api.SearchResult]](Left(""))
     div(
-      managedFunction(() =>
-        targetSubject.collect { case Right(result) => Page.Atoms.Atom(result.atom.id) }.subscribe(Page.current),
+      VModifier.managedEval(
+        targetSubject.collect { case Right(result) => Page.Atoms.Atom(result.atom.id) }.unsafeSubscribe(Page.current),
       ),
       completionInput[api.SearchResult](
         resultSubject = targetSubject,
         search = query => dbApi.findAtoms(query),
         show = _.atom.toString,
-        inputModifiers = VDomModifier(placeholder := "Search", cls := "input input-sm input-bordered"),
+        inputModifiers = VModifier(placeholder := "Search", cls := "input input-sm input-bordered"),
       ),
     )
   }
 
-  def focusAtom(atomId: api.AtomId): VNode = {
+  def focusAtom(atomId: api.AtomId): VModifier = Owned {
     div(
       dbApi
         .getAtom(atomId)
         .map(_.map { atom =>
           ResolvedAtom.from(atom).map { resolvedAtom =>
             val isEditing = Subject.behavior(false)
-            isEditing.map[VDomModifier] {
+            isEditing.map[VModifier] {
               case true =>
                 import AtomForm.given
-                val subject = Subject.behavior[AtomForm](AtomForm.from(resolvedAtom))
+                val atomFormState = Var[AtomForm](AtomForm.from(resolvedAtom))
                 div(
-                  Form[AtomForm](subject, formModifiers = formModifiers),
+                  Form[AtomForm](atomFormState, formModifiers = formModifiers),
                   button(
                     "save",
                     cls := "btn btn-xs",
-                    onClick(subject).foreach { formValue =>
+                    onClick.stopPropagation.doAction {
                       async[Future] {
-                        await(saveAtom(formValue, atom.id))
-                        isEditing.onNext(false)
+                        await(saveAtom(atomFormState.now(), atom.id))
+                        isEditing.unsafeOnNext(false)
                       }
                     },
                   ),
@@ -92,7 +93,7 @@ object App {
                   button(
                     "edit",
                     cls := "btn btn-xs",
-                    onClick.use(true) --> isEditing,
+                    onClick.as(true) --> isEditing,
                   ),
                 )
             }
@@ -105,11 +106,11 @@ object App {
           div(reference.key, ": ", showAtomValue(reference.atom))
         }
       },
-    )
+    ): VModifier
   }
 
-  def onClickFocusAtom(atomId: api.AtomId) = VDomModifier(
-    onClick.use(Page.Atoms.Atom(atomId)) --> Page.current,
+  def onClickFocusAtom(atomId: api.AtomId) = VModifier(
+    onClick.as(Page.Atoms.Atom(atomId)) --> Page.current,
     cursor.pointer,
   )
 
@@ -129,7 +130,7 @@ object App {
     div(
       div("id: ", atom.id.value, cls := "text-xs text-gray-500"),
       div(atom.name, cls             := "text-xl"),
-      VDomModifier.ifTrue(atom.shape.nonEmpty)(
+      VModifier.ifTrue(atom.shape.nonEmpty)(
         div(
           "shape: ",
           atom.shape.map(atom => div(atom.toString, cls := "badge", onClickFocusAtom(atom.id))),
@@ -157,50 +158,50 @@ object App {
     dbApi.setAtom(formData.toAtom(atomId))
   }
 
-  def newAtomForm(): VNode = {
+  def newAtomForm(): VModifier = Owned {
     import AtomForm.given
 
-    val subject = Form.subject[AtomForm]
-    subject
+    val atomFormState = Form.state[AtomForm]
+    atomFormState
       .map(_.shape.collect { case Right(searchResult) => searchResult })
-      .distinctOnEquals
-      .delayMillis(100)                                                     // TODO: why is this needed?
-      .foreach { _.map { result => addInheritedShapeFields(result.atom) } } // TODO: handle cancelable
+      .foreach {
+        _.map { result => addInheritedShapeFields(result.atom) }
+      } // TODO: is this automatically cancelled by `Owned`?
 
     // TODO: is this called too often?
-    def addInheritedShapeFields(shapeAtom: api.Atom): colibri.Cancelable = {
-      subject.onNext(
-        subject
+    def addInheritedShapeFields(shapeAtom: api.Atom): Unit = {
+      atomFormState.set(
+        atomFormState
           .now()
           .copy(targets =
-            (subject.now().targets ++
-              shapeAtom.targets.map { case (key -> value) => AtomForm.TargetPair(key, Left("")) }.toSeq)
+            (atomFormState.now().targets ++
+              shapeAtom.targets.map { case key -> value => AtomForm.TargetPair(key, Left("")) }.toSeq)
               .distinctBy(_.key),
           ),
       )
 
       shapeAtom.shape.traverse { atomId =>
-        dbApi.getAtom(atomId)
+        dbApi.getAtom(atomId).first
       }.foreach(_.flatten.foreach(addInheritedShapeFields))
     }
 
     div(
       Form[AtomForm](
-        subject,
+        atomFormState,
         formModifiers = formModifiers,
       ),
       button(
         "Create",
         cls := "btn btn-sm",
-        onClick.foreach(async[Future] {
-          val atomId = await(createAtom(subject.now()))
-          Page.current.onNext(Page.Atoms.Atom(atomId))
+        onClick.doAction(async[Future] {
+          val atomId = await(createAtom(atomFormState.now()))
+          Page.current.unsafeOnNext(Page.Atoms.Atom(atomId))
         }.onComplete {
           case Success(_) => println("created atom")
           case Failure(e) => e.printStackTrace()
         }),
       ),
-    )
+    ): VModifier
   }
 
 }

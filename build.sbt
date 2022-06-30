@@ -1,13 +1,13 @@
 Global / onChangedBuildSource := IgnoreSourceChanges // not working well with webpack devserver
 
 ThisBuild / version      := "0.1.0-SNAPSHOT"
-ThisBuild / scalaVersion := "3.1.2"
+ThisBuild / scalaVersion := "3.1.3"
 
 val versions = new {
   val funPack  = "0.2.0"
-  val circe    = "0.14.1"
-  val outwatch = "1.0.0-RC6+2-6728c9c7-SNAPSHOT"
-  val colibri  = "0.2.6"
+  val circe    = "0.14.2"
+  val outwatch = "1.0.0-RC8"
+  val colibri  = "0.5.0+20-56f388c5-SNAPSHOT"
 }
 
 ThisBuild / resolvers ++= Seq(
@@ -19,7 +19,7 @@ ThisBuild / resolvers ++= Seq(
 lazy val commonSettings = Seq(
   scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat
   libraryDependencies ++= Seq(
-    "com.github.rssh" %%% "dotty-cps-async" % "0.9.8",
+    "com.github.rssh" %%% "dotty-cps-async" % "0.9.9",
     "io.circe"        %%% "circe-core"      % versions.circe,
     "io.circe"        %%% "circe-generic"   % versions.circe,
     "io.circe"        %%% "circe-parser"    % versions.circe,
@@ -43,7 +43,7 @@ lazy val webapp = project
   .settings(commonSettings, jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "com.github.fdietze"   %%% "formidable"     % "0.1.0-SNAPSHOT",
+      "com.github.fdietze"   %%% "formidable"     % "0.0.0+4-cb08ef2c+20220628-2025-SNAPSHOT",
       "io.github.outwatch"   %%% "outwatch"       % versions.outwatch,
       "io.github.outwatch"   %%% "outwatch-util"  % versions.outwatch, // Store, Websocket, Http
       "com.github.cornerman" %%% "colibri-router" % versions.colibri,

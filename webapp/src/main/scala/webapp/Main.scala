@@ -25,5 +25,5 @@ object Main {
   implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 
   def main(args: Array[String]): Unit =
-    OutWatch.renderInto[SyncIO]("#app", App.layout).unsafeRunSync()
+    Outwatch.renderInto[SyncIO]("#app", App.layout).unsafeRunSync()
 }

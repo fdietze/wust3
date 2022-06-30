@@ -17,30 +17,30 @@ package object util {
       onInput.value --> subject,
     )
 
-  def inlineEditable(rendered: VNode, value: String, onEdit: (String) => Future[Unit])(implicit
+  def inlineEditable(rendered: VNode, value: String, onEdit: String => Future[Unit])(implicit
     ec: scala.concurrent.ExecutionContext,
-  ): VDomModifier = {
+  ): VModifier = {
     val isEditingSubject = Subject.behavior(false)
     isEditingSubject.map { isEditing =>
       if (isEditing) SyncIO {
         val newValueSubject = Subject.behavior(value)
         syncedTextInput(newValueSubject)(
-          onChange.foreach {
+          onChange.doAction {
             onEdit(newValueSubject.now())
-            isEditingSubject.onNext(false)
+            isEditingSubject.unsafeOnNext(false)
           },
-          onBlur.foreach(_ => isEditingSubject.onNext(false)),
+          onBlur.foreach(_ => isEditingSubject.unsafeOnNext(false)),
         )
-      }: VDomModifier
-      else rendered(onClick.use(true) --> isEditingSubject)
+      }: VModifier
+      else rendered(onClick.as(true) --> isEditingSubject)
     }
   }
 
   def completionInput[T](
     resultSubject: Subject[Either[String, T]] = Subject.behavior[Either[String, T]](Left("")),
-    search: String => Future[Seq[T]] = (x: String) => Future.successful(Seq.empty),
-    show: T => String = (x: T) => "",
-    inputModifiers: VDomModifier = VDomModifier.empty,
+    search: String => Future[Seq[T]] = (_: String) => Future.successful(Seq.empty),
+    show: T => String = (_: T) => "",
+    inputModifiers: VModifier = VModifier.empty,
   )(implicit
     ec: scala.concurrent.ExecutionContext,
   ): VNode = {
@@ -56,10 +56,10 @@ package object util {
 
     div(
       cls := "relative inline-block",
-      managedFunction(() => querySubject.foreach(lastInput = _)),
+      VModifier.managedEval(querySubject.unsafeForeach(lastInput = _)),
       resultSubject.map {
         case Left(_) =>
-          VDomModifier(
+          VModifier(
             syncedTextInput(querySubject)(inputSize, inputModifiers),
             div(
               querySubject
@@ -69,16 +69,16 @@ package object util {
                   else Observable.fromFuture(search(query))
                 }
                 .map(results =>
-                  VDomModifier(
+                  VModifier(
                     results.map(result =>
                       div(
                         show(result),
-                        onClick.stopPropagation.use(Right(result)) --> resultSubject,
+                        onClick.stopPropagation.as(Right(result)) --> resultSubject,
                         cls := "whitespace-nowrap overflow-x-hidden text-ellipsis",
                         cls := "hover:bg-blue-200 hover:dark:bg-blue-800 p-2 cursor-pointer",
                       ),
                     ),
-                    VDomModifier
+                    VModifier
                       .ifTrue(results.nonEmpty)(cls := "absolute bg-blue-100 dark:bg-blue-900 dark:text-white z-10"),
                   ),
                 ),
@@ -93,7 +93,7 @@ package object util {
             cls := "h-full px-2 bg-blue-100 dark:bg-blue-900 dark:text-white cursor-pointer rounded",
             cls := "flex items-center",
             inputSize,
-            onClick.stopPropagation.use(Left(lastInput)) --> resultSubject,
+            onClick.stopPropagation.as(Left(lastInput)) --> resultSubject,
           )
       },
     )
@@ -110,11 +110,15 @@ package object util {
     b.result()
   }
 
-  def observableFirstFuture[T](obs: Observable[T])(implicit ec: ExecutionContext): Future[T] = {
+  extension [T](obs: Observable[T]) {
+    def first(using ExecutionContext) = observableFirstFuture(obs)
+  }
+
+  def observableFirstFuture[T](obs: Observable[T])(using ExecutionContext): Future[T] = {
     val promise    = Promise[T]
     val future     = promise.future
-    val cancelable = obs.take(1).recoverToEither.foreach(value => promise.complete(value.toTry))
-    future.onComplete(_ => cancelable.cancel())
+    val cancelable = obs.take(1).attempt.unsafeForeach(value => promise.complete(value.toTry))
+    future.onComplete(_ => cancelable.unsafeCancel())
     future
   }
 

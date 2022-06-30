@@ -21,7 +21,7 @@ object App {
 
   def page(): VNode =
     div(
-      Page.current.map[VDomModifier] {
+      Page.current.map[VModifier] {
         case Page.Atoms.Home         => atoms.App.layout()
         case Page.Atoms.Atom(atomId) => atoms.App.layout(focus = Some(atomId))
 
