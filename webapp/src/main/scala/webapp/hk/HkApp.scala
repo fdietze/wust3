@@ -2,6 +2,7 @@ package webapp.hk
 
 import cats.effect.{IO, SyncIO}
 import colibri.Subject
+import colibri.reactive._
 import org.scalajs.dom.console
 import outwatch.*
 import outwatch.dsl.*
@@ -47,15 +48,15 @@ object App {
       ),
     )
 
-  def newFrameForm(): VNode = {
-    val frameSubject = Subject.behavior[Either[String, api.Topic]](Left(""))
+  def newFrameForm(): VModifier = Owned {
+    val frameSubject = Var[Either[String, api.Topic]](Left(""))
     val castings =
-      Subject.behavior[Seq[(Either[String, api.Topic], Either[String, api.Topic])]](
+      Var[Seq[(Either[String, api.Topic], Either[String, api.Topic])]](
         Seq((Left(""), Left(""))),
       )
     div(
       completionInput[api.Topic](
-        resultSubject = frameSubject,
+        resultState = frameSubject,
         search = query =>
           dbApi
             .findTopics(query),
@@ -74,14 +75,14 @@ object App {
               div(
                 cls := "flex",
                 completionInput[api.Topic](
-                  resultSubject = keySubject,
+                  resultState = keySubject,
                   search = query =>
                     dbApi
                       .findTopics(query),
                   show = x => x.toString,
                 ),
                 completionInput[api.Topic](
-                  resultSubject = valueSubject,
+                  resultState = valueSubject,
                   search = query =>
                     dbApi
                       .findTopics(query),
@@ -90,7 +91,7 @@ object App {
                 button(
                   "remove",
                   onClick.stopPropagation.foreach { _ =>
-                    castings.unsafeOnNext(castings.now().patch(i, Nil, 1))
+                    castings.set(castings.now().patch(i, Nil, 1))
                   },
                 ),
               )
@@ -99,7 +100,7 @@ object App {
         button(
           "add",
           onClick.foreach { _ =>
-            castings.unsafeOnNext(castings.now() :+ (Left(""), Left("")))
+            castings.set(castings.now() :+ (Left(""), Left("")))
           },
         ),
       ),
@@ -143,7 +144,7 @@ object App {
           else console.log("invalid frame")
         },
       ),
-    )
+    ): VModifier
   }
 
   def showFrame(frame: api.Frame): VNode =

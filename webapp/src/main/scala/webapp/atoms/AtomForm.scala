@@ -1,22 +1,21 @@
 package webapp.atoms
 
-import colibri._
-import outwatch._
-import outwatch.dsl._
+import cats.syntax.all.*
+import colibri.*
+import colibri.reactive.*
+import cps.*
+import cps.monads.{given, *}
 import formidable.{given, *}
-import webapp.util._
-import scala.concurrent.Future
-import colibri.reactive._
-import cats.syntax.all._
-import scala.concurrent.Promise
-import scala.util.Success
-import scala.util.Failure
-import cps.*                 // async, await
-import cps.monads.{given, *} // support for built-in monads (i.e. Future)
+import outwatch.*
+import outwatch.dsl.*
+import webapp.util.*
+
+import scala.concurrent.{Future, Promise}
+import scala.util.{Failure, Success} // support for built-in monads (i.e. Future)
 
 case class AtomForm(
-  name: Option[String],
   shape: Seq[Either[String, api.SearchResult]],
+  alias: Option[String],
   targets: Seq[AtomForm.TargetPair],
 ) {
   def toAtom(atomId: api.AtomId): api.Atom = {
@@ -29,14 +28,14 @@ case class AtomForm(
       id = atomId,
       targets = targetMap,
       shape = shape.flatMap(_.map(_.atom.id).toOption).toVector,
-      name = name,
+      name = alias,
     )
   }
 }
 object AtomForm {
   implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 
-  val dbApi = App.dbApi
+  val dbApi: api.Api = App.dbApi
 
   case class TargetPair(key: String, value: Either[String, api.SearchResult])
 
@@ -50,23 +49,23 @@ object AtomForm {
       case key -> ResolvedField.Atom(atom)   => TargetPair(key, Right(api.SearchResult(atom, None)))
     }.toVector
 
-    val formShapes = atom.shape.map { atom => Right(api.SearchResult(atom, None)) }.toVector
+    val formShapes = atom.shape.map { atom => Right(api.SearchResult(atom, None)) }
 
     AtomForm(
-      name = atom.name,
+      alias = atom.name,
       shape = formShapes,
       targets = formTargets,
     )
   }
 
   given Form[Either[String, api.SearchResult]] with {
-    def default = Left("")
+    def default: Either[String, api.SearchResult] = Left("")
     def apply(
       state: Var[Either[String, api.SearchResult]],
       formModifiers: FormModifiers,
-    )(using Owner): VNode = {
+    )(using Owner): VModifier = {
       completionInput[api.SearchResult](
-        resultSubject = Subject.from(state.observer, state.observable),
+        resultState = state,
         search = query => dbApi.findAtoms(query),
         show = _.atom.toString,
         inputModifiers = formModifiers.inputModifiers,
@@ -74,21 +73,19 @@ object AtomForm {
     }
   }
 
-  // given Form[TargetPair] with {
-  //   def default = TargetPair("", Left(""))
-  //   def apply(
-  //     subject: Subject[TargetPair],
-  //     formModifiers: FormModifiers,
-  //   ): VNode = {
-  //     val behaviorSubject = Subject.behavior(default)
-  //     val keySubject      = behaviorSubject.lens(_.key)((tp, newKey) => tp.copy(key = newKey))
-  //     div(
-  //       cls := "flex",
-  //       subject.map(_.toString),
-  //       managedFunction(() => subject.distinctOnEquals.unsafeSubscribe(behaviorSubject)),
-  //       managedFunction(() => behaviorSubject.drop(1).distinctOnEquals.unsafeSubscribe(subject)),
-  //       syncedTextInput(keySubject)(formModifiers.inputModifiers),
-  //     )
-  //   }
-  // }
+  given Form[TargetPair] with {
+    def default: TargetPair = TargetPair("", Left(""))
+    def apply(
+      state: Var[TargetPair],
+      formModifiers: FormModifiers,
+    )(using Owner): VModifier = {
+      val keyState: Var[String] = state.lens(_.key)((tp, newKey) => tp.copy(key = newKey))
+      val valueState: Var[Either[String, api.SearchResult]] =
+        state.lens(_.value)((tp, newValue) => tp.copy(value = newValue))
+      div(
+        cls := "flex",
+        syncedTextInput(keyState)(formModifiers.inputModifiers),
+      )
+    }
+  }
 }

@@ -48,19 +48,17 @@ object App {
     buttonModifiers = VModifier(cls := "btn btn-sm"),
   )
 
-  def search(): VNode = {
-    val targetSubject = Subject.behavior[Either[String, api.SearchResult]](Left(""))
+  def search(): VModifier = Owned {
+    val targetSubject = Var[Either[String, api.SearchResult]](Left(""))
+//    targetSubject.collect { case Right(result) => Page.Atoms.Atom(result.atom.id) }.foreach(Page.current.set)
     div(
-      VModifier.managedEval(
-        targetSubject.collect { case Right(result) => Page.Atoms.Atom(result.atom.id) }.unsafeSubscribe(Page.current),
-      ),
       completionInput[api.SearchResult](
-        resultSubject = targetSubject,
+        resultState = targetSubject,
         search = query => dbApi.findAtoms(query),
         show = _.atom.toString,
         inputModifiers = VModifier(placeholder := "Search", cls := "input input-sm input-bordered"),
       ),
-    )
+    ): VModifier
   }
 
   def focusAtom(atomId: api.AtomId): VModifier = Owned {
