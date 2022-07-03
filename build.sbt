@@ -7,7 +7,7 @@ val versions = new {
   val funPack  = "0.2.0"
   val circe    = "0.14.2"
   val outwatch = "1.0.0-RC8"
-  val colibri  = "0.5.0+20-56f388c5-SNAPSHOT"
+  val colibri  = "0.6.0+3-ff10e1ed+20220702-2151-SNAPSHOT"
 }
 
 ThisBuild / resolvers ++= Seq(
@@ -43,10 +43,11 @@ lazy val webapp = project
   .settings(commonSettings, jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "com.github.fdietze"   %%% "formidable"     % "0.0.0+4-cb08ef2c+20220630-1909-SNAPSHOT",
-      "io.github.outwatch"   %%% "outwatch"       % versions.outwatch,
-      "io.github.outwatch"   %%% "outwatch-util"  % versions.outwatch, // Store, Websocket, Http
-      "com.github.cornerman" %%% "colibri-router" % versions.colibri,
+      "com.github.fdietze"   %%% "formidable"       % "0.0.0+6-eab5cb4d-SNAPSHOT",
+      "io.github.outwatch"   %%% "outwatch"         % versions.outwatch,
+      "com.github.cornerman" %%% "colibri"          % versions.colibri,
+      "com.github.cornerman" %%% "colibri-reactive" % versions.colibri,
+      "com.github.cornerman" %%% "colibri-router"   % versions.colibri,
     ),
     Compile / npmDependencies ++= Seq(
       "snabbdom" -> "github:outwatch/snabbdom.git#semver:0.7.5", // for outwatch, workaround for: https://github.com/ScalablyTyped/Converter/issues/293

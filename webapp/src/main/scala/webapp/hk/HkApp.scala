@@ -1,8 +1,7 @@
 package webapp.hk
 
 import cats.effect.{IO, SyncIO}
-import colibri.Subject
-import colibri.reactive._
+import colibri.reactive.*
 import org.scalajs.dom.console
 import outwatch.*
 import outwatch.dsl.*

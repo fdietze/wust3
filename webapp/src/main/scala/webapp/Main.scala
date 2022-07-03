@@ -1,7 +1,6 @@
 package webapp
 
 import cats.effect.{IO, SyncIO}
-import colibri.Subject
 import outwatch.*
 import outwatch.dsl.*
 import webapp.util.*

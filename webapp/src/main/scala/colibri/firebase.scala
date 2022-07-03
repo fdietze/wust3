@@ -2,14 +2,14 @@ package colibri
 
 import cats.effect.IO
 import io.circe.parser.decode
+import io.circe.syntax.*
 import io.circe.{Decoder, Encoder}
-import io.circe.syntax._
 import org.scalablytyped.runtime.StringDictionary
-import typings.firebaseFirestore.mod.{collection => _, doc => _, _}
 import org.scalajs.dom.console
+import typings.firebaseFirestore.mod.{collection as _, doc as _, *}
 
-import scala.scalajs.js.JSConverters._
 import scala.scalajs.js
+import scala.scalajs.js.JSConverters.*
 
 package object firebase {
   // https://firebase.google.com/docs/firestore/query-data/listen

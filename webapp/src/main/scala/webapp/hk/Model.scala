@@ -1,22 +1,19 @@
 package webapp.hk
 
-import colibri.firebase.{circeConverter, docObservable, docSubject, getDocsIO, queryObservable}
+import cats.syntax.traverse.*
+import colibri.firebase.*
 import colibri.{Observable, Subject}
-import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.syntax._
 import io.circe.parser.decode
-import org.scalajs.dom.window
-import org.scalajs.dom.console
+import io.circe.syntax.*
+import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
+import org.scalajs.dom.{console, window}
 import typings.firebaseFirestore.mod.where
-import scala.concurrent.Future
-import scala.util.Try
-import cats.syntax.traverse._
+import typings.node.nodeStrings.{der, equal}
 
 import scala.concurrent.Future
 import scala.scalajs.js
-import typings.node.nodeStrings.der
-import typings.node.nodeStrings.equal
+import scala.util.Try
 
 package object api {
   type CId     = String
@@ -240,11 +237,12 @@ package object api {
 
 object FirebaseApi extends api.Api {
 
-  import typings.firebaseApp.mod.{initializeApp, FirebaseOptions}
-  import typings.firebaseFirestore.mod._
-  import org.scalajs.dom.console
-  import scala.scalajs.js.JSConverters._
   import org.scalablytyped.runtime.StringDictionary
+  import org.scalajs.dom.console
+  import typings.firebaseApp.mod.{initializeApp, FirebaseOptions}
+  import typings.firebaseFirestore.mod.*
+
+  import scala.scalajs.js.JSConverters.*
 
   implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 

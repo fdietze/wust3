@@ -1,39 +1,37 @@
 package webapp
 
-import colibri._
-import scala.concurrent.Future
 import cats.effect.SyncIO
-import colibri.{BehaviorSubject, Observable, Subject}
-import colibri.reactive._
-import outwatch._
-import outwatch.dsl._
-import scala.concurrent.Promise
-import scala.concurrent.ExecutionContext
+import colibri.reactive.*
+import colibri.*
+import outwatch.*
+import outwatch.dsl.*
+
+import scala.concurrent.{ExecutionContext, Future, Promise}
 
 package object util {
-  def syncedTextInput(subject: Var[String]): VNode =
+  def syncedTextInput(state: Var[String]): VNode =
     input(
       tpe := "text",
-      value <-- subject,
-      onInput.value --> subject,
+      value <-- state,
+      onInput.value --> state,
     )
 
   def inlineEditable(rendered: VNode, value: String, onEdit: String => Future[Unit])(implicit
     ec: scala.concurrent.ExecutionContext,
-  ): VModifier = {
-    val isEditingSubject = Subject.behavior(false)
-    isEditingSubject.map { isEditing =>
+  ): VModifier = Owned[VModifier] {
+    val isEditingState = Var(false)
+    isEditingState.map { isEditing =>
       if (isEditing) SyncIO {
         val newValueState = Var(value)
         syncedTextInput(newValueState)(
           onChange.doAction {
             onEdit(newValueState.now())
-            isEditingSubject.unsafeOnNext(false)
+            isEditingState.set(false)
           },
-          onBlur.foreach(_ => isEditingSubject.unsafeOnNext(false)),
+          onBlur.foreach(_ => isEditingState.set(false)),
         )
       }: VModifier
-      else rendered(onClick.as(true) --> isEditingSubject)
+      else rendered(onClick.as(true) --> isEditingState)
     }
   }
 
@@ -42,16 +40,15 @@ package object util {
     search: String => Future[Seq[T]] = (_: String) => Future.successful(Seq.empty),
     show: T => String = (_: T) => "",
     inputModifiers: VModifier = VModifier.empty,
-  )(implicit
-    ec: scala.concurrent.ExecutionContext,
-  ): VModifier = Owned {
+  )(using ExecutionContext): VModifier = Owned {
     val queryState: Var[String] = resultState.transformVar[String](
       // write every input field value into the resultState
       _.contramap(Left(_)),
-    )(
-      // only write write strings back on the Left case
-      _.collect { case Left(str) => str }(""),
-    )
+    ) { // only write strings back on the Left case
+      _.collect { case Left(str) =>
+        str
+      }("")
+    }
 
     var lastInput = ""
     queryState.foreach(lastInput = _)
@@ -111,18 +108,6 @@ package object util {
       i            += 1
     }
     b.result()
-  }
-
-  extension [T](obs: Observable[T]) {
-    def first(using ExecutionContext) = observableFirstFuture(obs)
-  }
-
-  def observableFirstFuture[T](obs: Observable[T])(using ExecutionContext): Future[T] = {
-    val promise    = Promise[T]
-    val future     = promise.future
-    val cancelable = obs.take(1).attempt.unsafeForeach(value => promise.complete(value.toTry))
-    future.onComplete(_ => cancelable.unsafeCancel())
-    future
   }
 
 }

@@ -1,29 +1,26 @@
 package webapp.atoms
 
-import colibri.Subject
-import outwatch._
-import outwatch.dsl._
-import webapp.util._
-import cats.syntax.all._
-
-import cps.*                 // async, await
-import cps.monads.{given, *} // support for built-in monads (i.e. Future)
-
+import cats.syntax.all.*
+import colibri.Observable
+import colibri.reactive.*
+import cps.*
+import cps.monads.{given, *}
+import formidable.{given, *}
+import outwatch.*
+import outwatch.dsl.*
 import webapp.Page
+import webapp.util.*
 
 import scala.concurrent.Future
-import formidable.{given, *}
-import scala.util.Success
-import scala.util.Failure
-import colibri.reactive._
+import scala.util.{Failure, Success}
 
 object App {
   implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 
   val dbApi: api.Api = FirebaseApi
 
-  def layout(focus: Option[api.AtomId] = None): VNode = {
-    val showCreateAtomForm = Subject.behavior(false)
+  def layout(focus: Option[api.AtomId] = None) = Owned[VNode] {
+    val showCreateAtomForm = Var(false)
     div(
       div(
         cls := "flex items-center",
@@ -49,11 +46,15 @@ object App {
   )
 
   def search(): VModifier = Owned {
-    val targetSubject = Var[Either[String, api.SearchResult]](Left(""))
-//    targetSubject.collect { case Right(result) => Page.Atoms.Atom(result.atom.id) }.foreach(Page.current.set)
+    val targetState = Var[Either[String, api.SearchResult]](Left(""))
+
     div(
+      VModifier.managedEval(
+        targetState.observable.collect { case Right(result) => Page.Atoms.Atom(result.atom.id) }
+          .unsafeForeach(Page.current.set),
+      ),
       completionInput[api.SearchResult](
-        resultState = targetSubject,
+        resultState = targetState,
         search = query => dbApi.findAtoms(query),
         show = _.atom.toString,
         inputModifiers = VModifier(placeholder := "Search", cls := "input input-sm input-bordered"),
@@ -67,7 +68,7 @@ object App {
         .getAtom(atomId)
         .map(_.map { atom =>
           ResolvedAtom.from(atom).map { resolvedAtom =>
-            val isEditing = Subject.behavior(false)
+            val isEditing = Var(false)
             isEditing.map[VModifier] {
               case true =>
                 import AtomForm.given
@@ -80,7 +81,7 @@ object App {
                     onClick.stopPropagation.doAction {
                       async[Future] {
                         await(saveAtom(atomFormState.now(), atom.id))
-                        isEditing.unsafeOnNext(false)
+                        isEditing.set(false)
                       }
                     },
                   ),
@@ -179,7 +180,7 @@ object App {
       )
 
       shapeAtom.shape.traverse { atomId =>
-        dbApi.getAtom(atomId).first
+        dbApi.getAtom(atomId).unsafeHeadFuture()
       }.foreach(_.flatten.foreach(addInheritedShapeFields))
     }
 
@@ -193,7 +194,7 @@ object App {
         cls := "btn btn-sm",
         onClick.doAction(async[Future] {
           val atomId = await(createAtom(atomFormState.now()))
-          Page.current.unsafeOnNext(Page.Atoms.Atom(atomId))
+          Page.current.set(Page.Atoms.Atom(atomId))
         }.onComplete {
           case Success(_) => println("created atom")
           case Failure(e) => e.printStackTrace()

@@ -1,7 +1,8 @@
 package webapp
 
-import colibri.Subject
 import colibri.router.*
+import colibri.reactive._
+import colibri.reactive.Owner.unsafeImplicits.unsafeGlobalOwner
 
 sealed trait Page {
   final def href = outwatch.dsl.href := s"#${Page.toPath(this).pathString}"
@@ -12,7 +13,7 @@ object Page {
 
   sealed trait AtomsPage extends Page
   object Atoms {
-    import atoms._
+    import atoms.*
     case object Home                     extends AtomsPage
     case class Atom(topicId: api.AtomId) extends AtomsPage
     object Paths {
@@ -23,7 +24,7 @@ object Page {
 
   sealed trait HkPage extends Page
   object Hk {
-    import hk._
+    import hk.*
     case object Home                       extends HkPage
     case class Topic(topicId: api.TopicId) extends HkPage
     object Paths {
@@ -54,6 +55,6 @@ object Page {
     case Hk.Topic(topicId) => Hk.Paths.Topic / topicId
   }
 
-  val current: Subject[Page] = Router.path
-    .imapSubject[Page](Page.toPath)(Page.fromPath)
+  val current: Var[Page] = Router.pathVar
+    .imap[Page](Page.toPath)(Page.fromPath)
 }

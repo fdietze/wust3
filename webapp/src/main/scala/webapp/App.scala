@@ -1,7 +1,7 @@
 package webapp
 
 import cats.effect.{IO, SyncIO}
-import colibri.Subject
+import colibri.reactive._
 import outwatch.*
 import outwatch.dsl.*
 import webapp.util.*
@@ -19,7 +19,7 @@ object App {
     page(),
   )
 
-  def page(): VNode =
+  def page() = Owned[VNode] {
     div(
       Page.current.map[VModifier] {
         case Page.Atoms.Home         => atoms.App.layout()
@@ -30,8 +30,9 @@ object App {
         case _ => div()
       },
     )
+  }
 
-  val pageHeader = {
+  def pageHeader = Owned[VNode] {
     def link(name: String, page: Page, selected: Page => Boolean) = {
       val styling = Page.current.map(selected).map {
         case true  => cls := "btn-neutral"

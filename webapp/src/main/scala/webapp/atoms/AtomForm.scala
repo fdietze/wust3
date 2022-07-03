@@ -11,11 +11,11 @@ import outwatch.dsl.*
 import webapp.util.*
 
 import scala.concurrent.{Future, Promise}
-import scala.util.{Failure, Success} // support for built-in monads (i.e. Future)
+import scala.util.{Failure, Success}
 
 case class AtomForm(
   shape: Seq[Either[String, api.SearchResult]],
-  alias: Option[String],
+  label: Option[String],
   targets: Seq[AtomForm.TargetPair],
 ) {
   def toAtom(atomId: api.AtomId): api.Atom = {
@@ -28,7 +28,7 @@ case class AtomForm(
       id = atomId,
       targets = targetMap,
       shape = shape.flatMap(_.map(_.atom.id).toOption).toVector,
-      name = alias,
+      name = label,
     )
   }
 }
@@ -52,7 +52,7 @@ object AtomForm {
     val formShapes = atom.shape.map { atom => Right(api.SearchResult(atom, None)) }
 
     AtomForm(
-      alias = atom.name,
+      label = atom.name,
       shape = formShapes,
       targets = formTargets,
     )
@@ -85,6 +85,7 @@ object AtomForm {
       div(
         cls := "flex",
         syncedTextInput(keyState)(formModifiers.inputModifiers),
+        Form[Either[String, api.SearchResult]](valueState),
       )
     }
   }

@@ -1,18 +1,16 @@
 package webapp.atoms
 
-import colibri.Subject
-import outwatch._
-import outwatch.dsl._
+import cats.syntax.all.*
+import colibri.{Observable, Subject}
+import cps.*
+import cps.monads.{given, *}
 import formidable.{given, *}
-import webapp.util._
-import scala.concurrent.Future
-import colibri.Observable
-import cats.syntax.all._
-import scala.concurrent.Promise
-import scala.util.Success
-import scala.util.Failure
-import cps.*                 // async, await
-import cps.monads.{given, *} // support for built-in monads (i.e. Future)
+import outwatch.*
+import outwatch.dsl.*
+import webapp.util.*
+
+import scala.concurrent.{Future, Promise}
+import scala.util.{Failure, Success} // support for built-in monads (i.e. Future)
 
 sealed trait ResolvedField
 
@@ -36,11 +34,11 @@ object ResolvedAtom {
     val resolvedTargets = await(atom.targets.toSeq.traverse {
       case key -> api.Field.Value(value) => Future.successful(Some(key -> ResolvedField.Value(value)))
       case key -> api.Field.AtomRef(atomId) =>
-        observableFirstFuture(dbApi.getAtom(atomId)).map(_.map(atom => key -> ResolvedField.Atom(atom)))
+        dbApi.getAtom(atomId).unsafeHeadFuture().map(_.map(atom => key -> ResolvedField.Atom(atom)))
     }).flatten.toMap
 
     val resolvedShapes = await(atom.shape.traverse { atomId =>
-      observableFirstFuture(dbApi.getAtom(atomId))
+      dbApi.getAtom(atomId).unsafeHeadFuture()
     }).flatten
 
     ResolvedAtom(

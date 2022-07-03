@@ -3,19 +3,18 @@ package webapp.atoms
 import cats.effect.IO
 import colibri.firebase.*
 import colibri.{Observable, Subject}
+import cps.*
+import cps.monads.{given, *}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+import io.circe.syntax.*
 import io.circe.{Decoder, Encoder}
-import io.circe.syntax._
 import org.scalajs.dom.window
 import typings.firebaseFirestore.mod.where
-
-import cps.*                 // async, await
-import cps.monads.{given, *} // support for built-in monads (i.e. Future)
+import typings.node.global.console
 
 import scala.concurrent.Future
 import scala.scalajs.js
-import scala.scalajs.js.annotation._
-import typings.node.global.console
+import scala.scalajs.js.annotation.*
 
 package object api {
   opaque type AtomId = String
