@@ -39,14 +39,29 @@ object App {
     )
   }
 
-  val formModifiers = FormModifiers(
-    inputModifiers = VModifier(cls := "input input-sm input-bordered"),
-    checkboxModifiers = VModifier(cls := "checkbox checkbox-sm"),
-    buttonModifiers = VModifier(cls := "btn btn-sm"),
-  )
+  val formConfig = new FormConfig {
+    //    inputModifiers = VModifier(cls := "input input-sm input-bordered"),
+//    checkboxModifiers = VModifier(cls := "checkbox checkbox-sm"),
+//    buttonModifiers = VModifier(cls := "btn btn-sm"),
+
+    override def textInput(state: Var[String], validationMessage: Rx[Option[String]])(using Owner) = div(
+      input(
+        tpe := "text",
+        cls := "input input-sm input-bordered",
+        value <-- state,
+        onInput.stopPropagation.value --> state,
+      ),
+      validationMessage.map(_.map(msg => div(msg, color.red))),
+    )
+  }
 
   def search(): VModifier = Owned {
     val targetState = Var[Either[String, api.SearchResult]](Left(""))
+
+//    Rx.observableSync(targetState.observable.collect { case Right(result) => Page.Atoms.Atom(result.atom.id) })
+//      .foreach(Page.current.set)
+//
+//    targetState.observable.collect { case Right(result) => Page.Atoms.Atom(result.atom.id) } --> Page.current
 
     div(
       VModifier.managedEval(
@@ -74,7 +89,7 @@ object App {
                 import AtomForm.given
                 val atomFormState = Var[AtomForm](AtomForm.from(resolvedAtom))
                 div(
-                  Form[AtomForm](atomFormState, formModifiers = formModifiers),
+                  Form[AtomForm](atomFormState, config = formConfig),
                   button(
                     "save",
                     cls := "btn btn-xs",
@@ -187,7 +202,7 @@ object App {
     div(
       Form[AtomForm](
         atomFormState,
-        formModifiers = formModifiers,
+        config = formConfig,
       ),
       button(
         "Create",

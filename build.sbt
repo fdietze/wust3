@@ -4,10 +4,11 @@ ThisBuild / version      := "0.1.0-SNAPSHOT"
 ThisBuild / scalaVersion := "3.1.3"
 
 val versions = new {
-  val funPack  = "0.2.0"
-  val circe    = "0.14.2"
-  val outwatch = "1.0.0-RC8"
-  val colibri  = "0.6.0+3-ff10e1ed+20220702-2151-SNAPSHOT"
+  val funPack    = "0.2.0"
+  val circe      = "0.14.2"
+  val outwatch   = "1.0.0-RC8"
+  val colibri    = "0.6.0+3-ff10e1ed+20220702-2309-SNAPSHOT"
+  val formidable = "0.0.0+6-eab5cb4d+20220702-2310-SNAPSHOT"
 }
 
 ThisBuild / resolvers ++= Seq(
@@ -43,7 +44,7 @@ lazy val webapp = project
   .settings(commonSettings, jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "com.github.fdietze"   %%% "formidable"       % "0.0.0+6-eab5cb4d-SNAPSHOT",
+      "com.github.fdietze"   %%% "formidable"       % versions.formidable,
       "io.github.outwatch"   %%% "outwatch"         % versions.outwatch,
       "com.github.cornerman" %%% "colibri"          % versions.colibri,
       "com.github.cornerman" %%% "colibri-reactive" % versions.colibri,

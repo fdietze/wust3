@@ -13,7 +13,7 @@ package object util {
     input(
       tpe := "text",
       value <-- state,
-      onInput.value --> state,
+      onInput.stopPropagation.value --> state,
     )
 
   def inlineEditable(rendered: VNode, value: String, onEdit: String => Future[Unit])(implicit

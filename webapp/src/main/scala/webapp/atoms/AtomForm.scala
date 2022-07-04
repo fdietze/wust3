@@ -62,13 +62,12 @@ object AtomForm {
     def default: Either[String, api.SearchResult] = Left("")
     def apply(
       state: Var[Either[String, api.SearchResult]],
-      formModifiers: FormModifiers,
+      formConfig: FormConfig,
     )(using Owner): VModifier = {
       completionInput[api.SearchResult](
         resultState = state,
         search = query => dbApi.findAtoms(query),
         show = _.atom.toString,
-        inputModifiers = formModifiers.inputModifiers,
       )
     }
   }
@@ -77,14 +76,14 @@ object AtomForm {
     def default: TargetPair = TargetPair("", Left(""))
     def apply(
       state: Var[TargetPair],
-      formModifiers: FormModifiers,
+      config: FormConfig,
     )(using Owner): VModifier = {
       val keyState: Var[String] = state.lens(_.key)((tp, newKey) => tp.copy(key = newKey))
       val valueState: Var[Either[String, api.SearchResult]] =
         state.lens(_.value)((tp, newValue) => tp.copy(value = newValue))
       div(
         cls := "flex",
-        syncedTextInput(keyState)(formModifiers.inputModifiers),
+        config.textInput(keyState),
         Form[Either[String, api.SearchResult]](valueState),
       )
     }
