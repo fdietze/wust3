@@ -62,12 +62,13 @@ object AtomForm {
     def default: Either[String, api.SearchResult] = Left("")
     def apply(
       state: Var[Either[String, api.SearchResult]],
-      formConfig: FormConfig,
+      config: FormConfig,
     )(using Owner): VModifier = {
       completionInput[api.SearchResult](
         resultState = state,
         search = query => dbApi.findAtoms(query),
         show = _.atom.toString,
+        textInput = config.textInput(_, inputPlaceholder = "atom"),
       )
     }
   }
@@ -82,10 +83,83 @@ object AtomForm {
       val valueState: Var[Either[String, api.SearchResult]] =
         state.lens(_.value)((tp, newValue) => tp.copy(value = newValue))
       div(
-        cls := "flex",
-        config.textInput(keyState),
-        Form[Either[String, api.SearchResult]](valueState),
+        cls := "flex gap-2",
+        config.textInput(keyState, inputPlaceholder = "key"),
+        Form[Either[String, api.SearchResult]](valueState, config),
       )
     }
   }
+
+  val formConfig = new FormConfig {
+    //    inputModifiers = VModifier(cls := "input input-sm input-bordered"),
+//    checkboxModifiers = VModifier(cls := "checkbox checkbox-sm"),
+//    buttonModifiers = VModifier(cls := "btn btn-sm"),
+
+    override def withCheckbox(subForm: VModifier, checkbox: VModifier) = {
+      div(display.flex, cls := "gap-2", checkbox, subForm)
+    }
+    override def withRemoveButton(subForm: VModifier, removeButton: VModifier) =
+      div(cls := "flex gap-2", removeButton, subForm)
+
+    override def labeledFormGroup(subForms: Seq[(String, VModifier)]) = {
+      table(
+        cls := "table-auto border-separate border-spacing-2",
+        subForms.map { case (label, subForm) =>
+          tr(td(div(cls := "h-8 pr-2 flex items-center", b(label, ": ")), cls := "align-top"), td(subForm))
+        },
+      )
+    }
+
+    override def formSequence(subForms: Seq[VModifier], addButton: VModifier) =
+      div(cls := "flex flex-col gap-2", subForms, addButton)
+
+    override def textInput(state: Var[String], inputPlaceholder: String, validationMessage: Rx[Option[String]])(using
+      Owner,
+    ) = {
+      div(
+        input(
+          tpe         := "text",
+          cls         := "input input-sm input-bordered",
+          placeholder := inputPlaceholder,
+          value <-- state,
+          onInput.stopPropagation.value --> state,
+        ),
+        validationMessage.map(_.map(msg => div(msg, color.red))),
+      )
+    }
+
+    override def checkbox(state: Var[Boolean])(using Owner) = {
+      div(
+        cls := "h-8 w-8 flex items-center justify-center",
+        input(
+          cls := "checkbox-sm",
+          tpe := "checkbox",
+          checked <-- state,
+          onClick.stopPropagation.checked --> state,
+        ),
+      )
+    }
+
+    override def addButton(action: () => Unit) = {
+      button(
+        "+",
+        cls := "w-8 h-8 rounded-full border",
+        onClick.stopPropagation.doAction {
+          action()
+        },
+      )
+    }
+
+    override def removeButton(action: () => Unit) = {
+      button(
+        "-",
+        cls := "w-8 h-8 rounded-full border",
+        onClick.stopPropagation.doAction {
+          action()
+        },
+      )
+    }
+
+  }
+
 }

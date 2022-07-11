@@ -39,7 +39,7 @@ package object util {
     resultState: Var[Either[String, T]] = Var[Either[String, T]](Left("")),
     search: String => Future[Seq[T]] = (_: String) => Future.successful(Seq.empty),
     show: T => String = (_: T) => "",
-    inputModifiers: VModifier = VModifier.empty,
+    textInput: Var[String] => VModifier = textState => syncedTextInput(textState),
   )(using ExecutionContext): VModifier = Owned {
     val queryState: Var[String] = resultState.transformVar[String](
       // write every input field value into the resultState
@@ -53,14 +53,12 @@ package object util {
     var lastInput = ""
     queryState.foreach(lastInput = _)
 
-    val inputSize = cls := "w-40"
-
     div(
       cls := "relative inline-block",
       resultState.map {
         case Left(_) =>
           VModifier(
-            syncedTextInput(queryState)(inputSize, inputModifiers),
+            textInput(queryState),
             div(
               queryState.observable
                 .debounceMillis(300)
@@ -92,7 +90,6 @@ package object util {
             ),
             cls := "h-full px-2 bg-blue-100 dark:bg-blue-900 dark:text-white cursor-pointer rounded",
             cls := "flex items-center",
-            inputSize,
             onClick.stopPropagation.as(Left(lastInput)) --> resultState,
           )
       },

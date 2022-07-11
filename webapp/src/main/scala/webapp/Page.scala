@@ -14,11 +14,13 @@ object Page {
   sealed trait AtomsPage extends Page
   object Atoms {
     import atoms.*
+    case object Create                   extends AtomsPage
     case object Home                     extends AtomsPage
     case class Atom(topicId: api.AtomId) extends AtomsPage
     object Paths {
-      val Home = Root / "atoms"
-      val Atom = Home / "atom"
+      val Home   = Root / "atoms"
+      val Atom   = Home / "atom"
+      val Create = Home / "create"
     }
   }
 
@@ -35,12 +37,13 @@ object Page {
 
   val fromPath: Path => Page = {
     case Atoms.Paths.Atom / atomId => Atoms.Atom(atoms.api.AtomId(atomId))
-    case Atoms.Paths.Home / _      => Atoms.Home
+    case Atoms.Paths.Create        => Atoms.Create
     case Atoms.Paths.Home          => Atoms.Home
+    case Atoms.Paths.Home / _      => Atoms.Home
 
     case Hk.Paths.Topic / topicId => Hk.Topic(topicId)
-    case Hk.Paths.Home / _        => Hk.Home
     case Hk.Paths.Home            => Hk.Home
+    case Hk.Paths.Home / _        => Hk.Home
 
     case _ => Page.Home
   }
@@ -48,6 +51,7 @@ object Page {
   val toPath: Page => Path = {
     case Home => Root
 
+    case Atoms.Create       => Atoms.Paths.Create
     case Atoms.Home         => Atoms.Paths.Home
     case Atoms.Atom(atomId) => Atoms.Paths.Atom / atomId.value
 
@@ -55,6 +59,9 @@ object Page {
     case Hk.Topic(topicId) => Hk.Paths.Topic / topicId
   }
 
-  val current: Var[Page] = Router.pathVar
-    .imap[Page](Page.toPath)(Page.fromPath)
+  val current: Var[Page] =
+    // Router.pathVar
+    Var
+      .combine[Path](Rx.observableSync(Router.path), RxWriter.observer(Router.path))
+      .imap[Page](Page.toPath)(Page.fromPath)
 }

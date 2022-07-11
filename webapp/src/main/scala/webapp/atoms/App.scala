@@ -19,39 +19,23 @@ object App {
 
   val dbApi: api.Api = FirebaseApi
 
-  def layout(focus: Option[api.AtomId] = None) = Owned[VNode] {
-    val showCreateAtomForm = Var(false)
+  def layout(page: Var[Page.AtomsPage]) = Owned[VNode] {
     div(
       div(
         cls := "flex items-center",
         button(
           "Create Atom",
           cls := "btn btn-xs btn-ghost",
-          onClick(showCreateAtomForm).map(!_) --> showCreateAtomForm,
+          onClick.as(Page.Atoms.Create) --> Page.current,
         ),
         search(),
       ),
       hr(),
-      showCreateAtomForm.map[VModifier] {
-        case true  => newAtomForm()
-        case false => focus.map(focusAtom)
+      page map {
+        case Page.Atoms.Home       => div()
+        case Page.Atoms.Create     => create()
+        case Page.Atoms.Atom(atom) => focusAtom(atom)
       },
-    )
-  }
-
-  val formConfig = new FormConfig {
-    //    inputModifiers = VModifier(cls := "input input-sm input-bordered"),
-//    checkboxModifiers = VModifier(cls := "checkbox checkbox-sm"),
-//    buttonModifiers = VModifier(cls := "btn btn-sm"),
-
-    override def textInput(state: Var[String], validationMessage: Rx[Option[String]])(using Owner) = div(
-      input(
-        tpe := "text",
-        cls := "input input-sm input-bordered",
-        value <-- state,
-        onInput.stopPropagation.value --> state,
-      ),
-      validationMessage.map(_.map(msg => div(msg, color.red))),
     )
   }
 
@@ -72,7 +56,8 @@ object App {
         resultState = targetState,
         search = query => dbApi.findAtoms(query),
         show = _.atom.toString,
-        inputModifiers = VModifier(placeholder := "Search", cls := "input input-sm input-bordered"),
+        textInput =
+          textState => syncedTextInput(textState)(placeholder := "Search", cls := "input input-sm input-bordered"),
       ),
     ): VModifier
   }
@@ -89,7 +74,7 @@ object App {
                 import AtomForm.given
                 val atomFormState = Var[AtomForm](AtomForm.from(resolvedAtom))
                 div(
-                  Form[AtomForm](atomFormState, config = formConfig),
+                  Form[AtomForm](atomFormState, config = AtomForm.formConfig),
                   button(
                     "save",
                     cls := "btn btn-xs",
@@ -172,7 +157,7 @@ object App {
     dbApi.setAtom(formData.toAtom(atomId))
   }
 
-  def newAtomForm(): VModifier = Owned {
+  def create(): VModifier = Owned {
     import AtomForm.given
 
     val atomFormState = Form.state[AtomForm]
@@ -200,9 +185,10 @@ object App {
     }
 
     div(
+      cls := "p-5",
       Form[AtomForm](
         atomFormState,
-        config = formConfig,
+        config = AtomForm.formConfig,
       ),
       button(
         "Create",

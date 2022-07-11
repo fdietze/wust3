@@ -22,12 +22,9 @@ object App {
   def page() = Owned[VNode] {
     div(
       Page.current.map[VModifier] {
-        case Page.Atoms.Home         => atoms.App.layout()
-        case Page.Atoms.Atom(atomId) => atoms.App.layout(focus = Some(atomId))
-
-        case Page.Hk.Home => hk.App.newFrameForm()
-
-        case _ => div()
+        case page: Page.AtomsPage => atoms.App.layout(Page.current.asInstanceOf[Var[Page.AtomsPage]])
+        case Page.Hk.Home         => hk.App.newFrameForm()
+        case _                    => div()
       },
     )
   }
